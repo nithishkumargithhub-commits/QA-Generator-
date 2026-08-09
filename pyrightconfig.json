@@ -1,0 +1,12 @@
+{
+  "include": [
+    "backend"
+  ],
+  "extraPaths": [
+    "backend",
+    "backend/app",
+    "backend/venv/Lib/site-packages"
+  ],
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Windows"
+}
