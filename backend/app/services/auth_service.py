@@ -57,7 +57,7 @@ class AuthService:
             email=req.email,
             hashed_password=hashed,
             full_name=req.full_name or req.username,
-            role=req.role or "Student"
+            role="Student"  # Security: Public signups are always Student accounts. Admin status must be granted by an Admin.
         )
         db.add(new_user)
         await db.commit()

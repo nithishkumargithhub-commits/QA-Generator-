@@ -97,16 +97,14 @@ export const RegisterPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-400 mb-1">Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:border-indigo-500 focus:outline-none"
-            >
-              <option value="Student">Student / Learner</option>
-              <option value="Instructor">Instructor / Educator</option>
-              <option value="Admin">Administrator</option>
-            </select>
+            <label className="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Account Role</label>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
+              <span>Standard Access</span>
+              <span className="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 font-semibold border border-indigo-500/20">
+                Student / Learner
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">Instructor or Admin access must be assigned by an Administrator.</p>
           </div>
 
           <button
