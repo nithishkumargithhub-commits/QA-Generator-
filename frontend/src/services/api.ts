@@ -3,7 +3,7 @@ import {
   UserAnalyticsSummary, AdminDashboardSummary
 } from '../types';
 
-const PUBLIC_BACKEND_URL = 'https://four-coats-bow.loca.lt';
+const PUBLIC_BACKEND_URL = 'https://qa-generator-backend.onrender.com';
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL
   ? `${(import.meta as any).env.VITE_API_URL}/api/v1`
