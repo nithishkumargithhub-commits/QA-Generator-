@@ -195,17 +195,25 @@ async def generate_quiz(
 async def list_quizzes(
     difficulty: Optional[str] = None,
     mode: Optional[str] = None,
+    my_only: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     stmt = select(Quiz).where(Quiz.is_published == True).options(
         selectinload(Quiz.questions).selectinload(Question.options)
     )
+
+    # Security & Privacy: Non-admin users (Students/Clients) ONLY see quizzes they created.
+    # Admins see all quizzes by default unless my_only=True is explicitly set.
+    if current_user.role.lower() != "admin" or my_only:
+        stmt = stmt.where(Quiz.creator_id == current_user.id)
+
     if difficulty:
         stmt = stmt.where(Quiz.difficulty_level == difficulty)
     if mode:
         stmt = stmt.where(Quiz.mode == mode)
 
+    stmt = stmt.order_by(Quiz.created_at.desc())
     res = await db.execute(stmt)
     return res.scalars().all()
 

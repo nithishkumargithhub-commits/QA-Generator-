@@ -140,10 +140,11 @@ class ApiClient {
     });
   }
 
-  async getQuizzes(difficulty?: string, mode?: string): Promise<Quiz[]> {
+  async getQuizzes(difficulty?: string, mode?: string, myOnly?: boolean): Promise<Quiz[]> {
     const q = new URLSearchParams();
     if (difficulty) q.append('difficulty', difficulty);
     if (mode) q.append('mode', mode);
+    if (myOnly) q.append('my_only', 'true');
     const queryStr = q.toString() ? `?${q.toString()}` : '';
     return this.request<Quiz[]>(`/quizzes${queryStr}`);
   }

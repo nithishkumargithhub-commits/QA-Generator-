@@ -5,24 +5,32 @@ import { api } from '../services/api';
 import { Quiz } from '../types';
 import { useQuizStore } from '../store/useQuizStore';
 
+import { useAuthStore } from '../store/useAuthStore';
+
 export const QuizListPage: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [difficultyFilter, setDifficultyFilter] = useState('');
   const [modeFilter, setModeFilter] = useState('');
+  const [myOnlyFilter, setMyOnlyFilter] = useState(false);
+  const { user } = useAuthStore();
   const { startQuiz } = useQuizStore();
   const navigate = useNavigate();
 
   useEffect(() => {
     async function loadQuizzes() {
       try {
-        const data = await api.getQuizzes(difficultyFilter || undefined, modeFilter || undefined);
+        const data = await api.getQuizzes(
+          difficultyFilter || undefined,
+          modeFilter || undefined,
+          user?.role === 'Admin' ? myOnlyFilter : true
+        );
         setQuizzes(data);
       } catch (e) {
         console.error(e);
       }
     }
     loadQuizzes();
-  }, [difficultyFilter, modeFilter]);
+  }, [difficultyFilter, modeFilter, myOnlyFilter, user?.role]);
 
   const handleStart = async (quiz: Quiz) => {
     await startQuiz(quiz);
@@ -42,33 +50,58 @@ export const QuizListPage: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase">
-          <Filter className="w-4 h-4 text-indigo-400" /> Filters:
+      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase">
+            <Filter className="w-4 h-4 text-indigo-400" /> Filters:
+          </div>
+          <select
+            value={difficultyFilter}
+            onChange={(e) => setDifficultyFilter(e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
+          >
+            <option value="">All Difficulties</option>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+            <option value="Expert">Expert</option>
+          </select>
+          <select
+            value={modeFilter}
+            onChange={(e) => setModeFilter(e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
+          >
+            <option value="">All Modes</option>
+            <option value="Standard">Standard Mode</option>
+            <option value="Timed">Timed Mode</option>
+            <option value="Practice">Practice Mode</option>
+            <option value="Revision">Revision Mode</option>
+            <option value="Adaptive">Adaptive Mode</option>
+          </select>
         </div>
-        <select
-          value={difficultyFilter}
-          onChange={(e) => setDifficultyFilter(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
-        >
-          <option value="">All Difficulties</option>
-          <option value="Easy">Easy</option>
-          <option value="Medium">Medium</option>
-          <option value="Hard">Hard</option>
-          <option value="Expert">Expert</option>
-        </select>
-        <select
-          value={modeFilter}
-          onChange={(e) => setModeFilter(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
-        >
-          <option value="">All Modes</option>
-          <option value="Standard">Standard Mode</option>
-          <option value="Timed">Timed Mode</option>
-          <option value="Practice">Practice Mode</option>
-          <option value="Revision">Revision Mode</option>
-          <option value="Adaptive">Adaptive Mode</option>
-        </select>
+
+        {user?.role === 'Admin' && (
+          <div className="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setMyOnlyFilter(false)}
+              className={`px-3 py-1 rounded-lg transition-colors ${
+                !myOnlyFilter ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              All System Quizzes
+            </button>
+            <button
+              type="button"
+              onClick={() => setMyOnlyFilter(true)}
+              className={`px-3 py-1 rounded-lg transition-colors ${
+                myOnlyFilter ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              My Created Quizzes
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quiz Grid */}
