@@ -41,9 +41,7 @@ async def upload_document(
     with open(save_path, "wb") as f:
         f.write(contents)
 
-    # Process Document Text & Structure
-    processed = DocumentProcessor.process_file(save_path, file.content_type or "application/octet-stream")
-
+    # Save file record with status='processing'
     doc = UploadedFile(
         id=file_id,
         user_id=current_user.id,
@@ -51,11 +49,11 @@ async def upload_document(
         file_path=save_path,
         file_size=len(contents),
         mime_type=file.content_type or "application/octet-stream",
-        status="ready",
-        extracted_text=processed["text"],
-        topic_summary=processed["topics"],
-        chapter_count=processed["chapter_count"],
-        topic_count=processed["topic_count"]
+        status="processing",
+        extracted_text="",
+        topic_summary=[],
+        chapter_count=0,
+        topic_count=0
     )
     db.add(doc)
 
@@ -64,7 +62,7 @@ async def upload_document(
         file_id=doc.id,
         version_number=1,
         file_path=save_path,
-        changes_summary="Initial upload and text extraction."
+        changes_summary="Initial upload, queued for background processing."
     )
     db.add(v)
 
@@ -78,6 +76,26 @@ async def upload_document(
 
     await db.commit()
     await db.refresh(doc)
+
+    # Enqueue Background Celery Task
+    from app.workers.job_tracker import JobTracker
+    from app.workers.document_tasks import process_document_task
+    JobTracker.set_job_status(file_id, "queued", progress=0.0)
+
+    try:
+        process_document_task.delay(file_id, save_path, doc.mime_type)
+    except Exception as e:
+        # Fallback to inline processing if Celery worker connection is not active
+        processed = DocumentProcessor.process_file(save_path, doc.mime_type)
+        doc.extracted_text = processed["text"]
+        doc.topic_summary = processed["topics"]
+        doc.chapter_count = processed["chapter_count"]
+        doc.topic_count = processed["topic_count"]
+        doc.status = "ready"
+        await db.commit()
+        await db.refresh(doc)
+        JobTracker.set_job_status(file_id, "completed", progress=1.0)
+
     return doc
 
 @router.get("", response_model=List[DocumentOut])
@@ -91,6 +109,14 @@ async def list_documents(
         stmt = select(UploadedFile).where(UploadedFile.user_id == current_user.id)
     res = await db.execute(stmt)
     return res.scalars().all()
+
+@router.get("/{document_id}/job_status")
+async def get_document_job_status(
+    document_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    from app.workers.job_tracker import JobTracker
+    return JobTracker.get_job_status(document_id)
 
 @router.get("/{document_id}", response_model=DocumentOut)
 async def get_document(
@@ -117,15 +143,29 @@ async def reprocess_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
-    processed = DocumentProcessor.process_file(doc.file_path, doc.mime_type)
-    doc.extracted_text = processed["text"]
-    doc.topic_summary = processed["topics"]
-    doc.chapter_count = processed["chapter_count"]
-    doc.topic_count = processed["topic_count"]
-
+    doc.status = "processing"
     await db.commit()
     await db.refresh(doc)
+
+    from app.workers.job_tracker import JobTracker
+    from app.workers.document_tasks import process_document_task
+    JobTracker.set_job_status(document_id, "queued", progress=0.0)
+
+    try:
+        process_document_task.delay(document_id, doc.file_path, doc.mime_type)
+    except Exception:
+        processed = DocumentProcessor.process_file(doc.file_path, doc.mime_type)
+        doc.extracted_text = processed["text"]
+        doc.topic_summary = processed["topics"]
+        doc.chapter_count = processed["chapter_count"]
+        doc.topic_count = processed["topic_count"]
+        doc.status = "ready"
+        await db.commit()
+        await db.refresh(doc)
+        JobTracker.set_job_status(document_id, "completed", progress=1.0)
+
     return doc
+
 
 @router.delete("/{document_id}")
 async def delete_document(

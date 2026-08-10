@@ -23,6 +23,17 @@ export const MyDocumentsPage: React.FC = () => {
     fetchDocs();
   }, []);
 
+  useEffect(() => {
+    const hasProcessing = documents.some(d => d.status === 'processing');
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      fetchDocs();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [documents]);
+
+
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this document?')) {
       await api.deleteDocument(id);

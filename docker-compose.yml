@@ -34,7 +34,22 @@ services:
       - postgres
       - redis
 
+  celery_worker:
+    build: ./backend
+    container_name: qa_celery_worker
+    command: celery -A app.workers.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://qa_user:qa_password123@postgres:5432/qa_generator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      SECRET_KEY: super-secret-key-change-in-production-qa-gen-2026-secure-jwt
+    depends_on:
+      - postgres
+      - redis
+
   frontend:
+
     build: ./frontend
     container_name: qa_frontend
     ports:

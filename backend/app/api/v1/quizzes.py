@@ -20,178 +20,67 @@ async def generate_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    text_content = ""
-    topic_summary = None
     doc_title = "AI Assessment"
-
     if req.document_id:
         stmt = select(UploadedFile).where(UploadedFile.id == req.document_id)
         res = await db.execute(stmt)
         doc = res.scalars().first()
-        if doc:
-            text_content = doc.extracted_text or ""
-            topic_summary = doc.topic_summary
+        if doc and doc.filename:
             doc_title = doc.filename.rsplit(".", 1)[0]
 
-    if not text_content and req.custom_text:
-        text_content = req.custom_text
-
-    if not text_content or not text_content.strip():
-        text_content = f"Comprehensive assessment on {req.title or 'General Knowledge and Applied Systems'}. Key concepts of architectural design, database systems, software engineering, security, and performance."
-
-    # --- EXTRACT mode: convert existing MCQ questions from the PDF directly ---
-    if req.mode == "extract":
-        raw_questions = MCQExtractor.extract(text_content)
-        if not raw_questions:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "No MCQ questions could be detected in this PDF. "
-                    "Make sure the PDF contains numbered questions with A/B/C/D options. "
-                    "Switch to 'Generate' mode to create new questions from the content."
-                )
-            )
-        # Use Gemini AI to solve and verify exact correct answers for extracted questions
-        raw_questions = await AIGeneratorService.solve_and_verify_extracted_questions(raw_questions, text_content)
-    else:
-        # Generate questions using AI engine
-        raw_questions = await AIGeneratorService.generate_questions(
-            text_content=text_content,
-            topic_summary=topic_summary,
-            difficulty=req.difficulty,
-            question_count=req.question_count,
-            question_types=req.question_types,
-            bloom_levels=req.bloom_levels
-        )
-
-    # Save Quiz and Questions to DB
     is_extract = req.mode == "extract"
     quiz = Quiz(
         creator_id=current_user.id,
         document_id=req.document_id,
         title=req.title or (f"{doc_title} — Converted Quiz" if is_extract else f"{doc_title} - {req.difficulty} Quiz"),
         description=(
-            f"Directly extracted {len(raw_questions)} MCQ questions from the uploaded PDF."
+            f"Extracted questions from uploaded document."
             if is_extract
-            else f"AI generated quiz with {len(raw_questions)} questions at {req.difficulty} level."
+            else f"AI generated quiz at {req.difficulty} level."
         ),
         time_limit_minutes=req.time_limit_minutes,
         passing_score=req.passing_score,
         is_published=True,
         difficulty_level="Medium" if is_extract else req.difficulty,
-        question_count=len(raw_questions),
-        total_marks=float(len(raw_questions)),
+        question_count=0,
+        total_marks=0.0,
         mode="Standard"
     )
     db.add(quiz)
-    await db.flush()
-
-    # Create Questions & Options
-    created_questions = []
-    for q_data in raw_questions:
-        raw_opts = q_data.get("options", [])
-        q_type = q_data.get("question_type", "mcq")
-
-        # Skip questions with no options at all (malformed AI/extract output)
-        if not raw_opts:
-            continue
-
-        # For MCQ-type questions, ensure there are always at least 4 options.
-        # If the source only provided 2–3, pad with placeholder distractors.
-        placeholder_pool = [
-            "None of the above",
-            "All of the above",
-            "Cannot be determined",
-            "The information provided is insufficient",
-        ]
-        if q_type in ("mcq", "scenario", "assertion_reason", "fill_blank") and len(raw_opts) < 4:
-            existing_keys = {o.get("option_key", "").upper() for o in raw_opts}
-            placeholders_added = 0
-            for key_letter in ["A", "B", "C", "D"]:
-                if key_letter not in existing_keys and placeholders_added < (4 - len(raw_opts)):
-                    raw_opts.append({
-                        "option_key": key_letter,
-                        "option_text": placeholder_pool[placeholders_added % len(placeholder_pool)],
-                        "is_correct": False,
-                    })
-                    placeholders_added += 1
-
-        # Sort options alphabetically (A → B → C → D)
-        raw_opts_sorted = sorted(raw_opts, key=lambda o: o.get("option_key", "Z").upper())
-
-        opts_list = [
-            QuestionOption(
-                option_key=opt.get("option_key", "A"),
-                option_text=opt.get("option_text", ""),
-                is_correct=opt.get("is_correct", False),
-                match_pair=opt.get("match_pair", None)
-            ) for opt in raw_opts_sorted
-        ]
-        q = Question(
-            quiz_id=quiz.id,
-            topic_name=q_data.get("topic_name", "General"),
-            question_type=q_type,
-            stem=q_data.get("stem", "Question stem..."),
-            explanation=q_data.get("explanation", ""),
-            difficulty=q_data.get("difficulty", req.difficulty),
-            bloom_taxonomy=q_data.get("bloom_taxonomy", "Understanding"),
-            confidence_score=q_data.get("confidence_score", 0.95),
-            points=q_data.get("points", 10.0),
-            options=opts_list
-        )
-        db.add(q)
-
-        created_questions.append(q)
-
-    # Log Activity
-    log = ActivityLog(
-        user_id=current_user.id,
-        action="GENERATE_QUIZ",
-        details=f"Generated quiz '{quiz.title}' with {len(created_questions)} questions."
-    )
-    db.add(log)
-
     await db.commit()
+    await db.refresh(quiz)
 
-    return QuizOut(
-        id=quiz.id,
-        creator_id=quiz.creator_id,
-        document_id=quiz.document_id,
-        title=quiz.title,
-        description=quiz.description,
-        time_limit_minutes=quiz.time_limit_minutes,
-        passing_score=quiz.passing_score,
-        is_published=quiz.is_published,
-        difficulty_level=quiz.difficulty_level,
-        question_count=quiz.question_count,
-        total_marks=quiz.total_marks,
-        mode=quiz.mode,
-        created_at=quiz.created_at,
-        questions=[
-            QuestionSchema(
-                id=q.id,
-                topic_name=q.topic_name,
-                question_type=q.question_type,
-                stem=q.stem,
-                explanation=q.explanation,
-                difficulty=q.difficulty,
-                bloom_taxonomy=q.bloom_taxonomy,
-                confidence_score=q.confidence_score,
-                points=q.points,
-                options=[
-                    QuestionOptionSchema(
-                        id=opt.id,
-                        option_key=opt.option_key,
-                        option_text=opt.option_text,
-                        is_correct=opt.is_correct,
-                        match_pair=opt.match_pair
-                    ) for opt in q.options
-                ]
-            ) for q in created_questions
-        ]
-    )
+    job_id = str(uuid.uuid4())
+    from app.workers.job_tracker import JobTracker
+    from app.workers.ai_tasks import generate_quiz_task
+    JobTracker.set_job_status(job_id, "queued", progress=0.0, result={"quiz_id": quiz.id})
+
+    req_dict = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+
+    try:
+        generate_quiz_task.delay(job_id, quiz.id, req_dict, req.document_id, current_user.id)
+    except Exception as e:
+        # Inline fallback execution if Celery worker is unavailable
+        from app.workers.ai_tasks import _async_generate_quiz
+        await _async_generate_quiz(job_id, quiz.id, req_dict, req.document_id, current_user.id)
+
+    # Re-fetch quiz with questions populated if inline, or return initial quiz model for background processing
+    stmt_full = select(Quiz).where(Quiz.id == quiz.id).options(selectinload(Quiz.questions).selectinload(Question.options))
+    res_full = await db.execute(stmt_full)
+    quiz_loaded = res_full.scalars().first() or quiz
+
+    return quiz_loaded
+
+@router.get("/jobs/{job_id}")
+async def get_quiz_job_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    from app.workers.job_tracker import JobTracker
+    return JobTracker.get_job_status(job_id)
 
 @router.get("", response_model=List[QuizOut])
+
 async def list_quizzes(
     difficulty: Optional[str] = None,
     mode: Optional[str] = None,

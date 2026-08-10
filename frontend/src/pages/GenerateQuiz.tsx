@@ -55,7 +55,7 @@ export const GenerateQuizPage: React.FC = () => {
     setGenerating(true);
     setError(null);
     try {
-      const quiz = await api.generateQuiz({
+      let quiz = await api.generateQuiz({
         document_id: selectedDocId || undefined,
         custom_text: customText || undefined,
         title: title || undefined,
@@ -66,6 +66,23 @@ export const GenerateQuizPage: React.FC = () => {
         passing_score: passingScore,
         mode: quizMode === 'extract' ? 'extract' : 'Standard',
       });
+
+      // Poll quiz until background worker finishes populating questions
+      let attempts = 0;
+      while ((!quiz.questions || quiz.questions.length === 0) && attempts < 20) {
+        await new Promise((res) => setTimeout(res, 1000));
+        attempts++;
+        try {
+          const updated = await api.getQuiz(quiz.id);
+          if (updated && updated.questions && updated.questions.length > 0) {
+            quiz = updated;
+            break;
+          }
+        } catch (e) {
+          break;
+        }
+      }
+
       await startQuiz(quiz);
       navigate(`/quiz/${quiz.id}`);
     } catch (err: any) {
@@ -73,6 +90,7 @@ export const GenerateQuizPage: React.FC = () => {
     } finally {
       setGenerating(false);
     }
+
   };
 
   const isExtract = quizMode === 'extract';

@@ -10,12 +10,15 @@ async def main():
             res = await session.execute(select(User).where(User.username == uname))
             user = res.scalars().first()
             if user:
+                user.is_active = True
+                user.is_suspended = False
                 ok = verify_password(pwd, user.hashed_password)
                 print(f"{uname}: EXISTS, password_ok={ok}, active={user.is_active}, suspended={user.is_suspended}, role={user.role}")
                 if not ok:
                     # Fix the password
                     user.hashed_password = get_password_hash(pwd)
                     print(f"  -> Password for {uname} has been FIXED.")
+
             else:
                 print(f"{uname}: NOT FOUND - creating now...")
                 new_user = User(
