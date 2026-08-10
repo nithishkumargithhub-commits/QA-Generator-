@@ -222,6 +222,11 @@ class ApiClient {
   async getAuditLogs(): Promise<any[]> {
     return this.request<any[]>('/audit/logs');
   }
+
+  async getUserHistory(userId: string): Promise<any> {
+    return this.request<any>(`/admin/users/${userId}/history`);
+  }
 }
+
 
 export const api = new ApiClient();
