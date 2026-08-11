@@ -612,10 +612,32 @@ Return ONLY a valid JSON array of objects with the exact schema:
             topics = [t["name"] for t in topic_summary if isinstance(t, dict) and "name" in t]
 
         questions = []
-        random.seed(42)  # repeatable baseline
+
+        def _build_randomized_4_options(correct_text: str, distractor1: str, distractor2: str, distractor3: str):
+            raw_choices = [
+                {"text": correct_text, "is_correct": True},
+                {"text": distractor1, "is_correct": False},
+                {"text": distractor2, "is_correct": False},
+                {"text": distractor3, "is_correct": False},
+            ]
+            random.shuffle(raw_choices)
+            keys = ["A", "B", "C", "D"]
+            final_opts = []
+            correct_key = "A"
+            for idx, item in enumerate(raw_choices):
+                key = keys[idx]
+                if item["is_correct"]:
+                    correct_key = key
+                final_opts.append({
+                    "option_key": key,
+                    "option_text": item["text"],
+                    "is_correct": item["is_correct"]
+                })
+            return final_opts, correct_key
 
         n_sentences = len(sentences)
         for i in range(count):
+            random.seed(42 + i * 17)
             sentence_idx = int(i * n_sentences / max(1, count)) % n_sentences
             sentence = sentences[sentence_idx]
             topic = topics[i % len(topics)]
@@ -627,21 +649,22 @@ Return ONLY a valid JSON array of objects with the exact schema:
             key_term = words[0] if words else "System"
 
             if q_type == "mcq":
+                opts, correct_key = _build_randomized_4_options(
+                    sentence,
+                    f"{sentence[:40]} is universally prohibited under standard protocols.",
+                    f"The process ignores {key_term} and substitutes static configuration.",
+                    f"None of the above statements apply to {key_term}."
+                )
                 questions.append({
                     "topic_name": topic,
                     "question_type": "mcq",
                     "stem": f"Based on the text: Which statement accurately reflects the concept regarding '{key_term}'?",
-                    "explanation": f"According to the source content: '{sentence}'. This validates Option A as the authoritative fact.",
+                    "explanation": f"According to the source content: '{sentence}'. This validates Option {correct_key} as the authoritative fact.",
                     "difficulty": difficulty,
                     "bloom_taxonomy": bloom,
                     "confidence_score": round(0.92 + (i % 7) * 0.01, 2),
                     "points": 10.0,
-                    "options": [
-                        {"option_key": "A", "option_text": sentence, "is_correct": True},
-                        {"option_key": "B", "option_text": f"{sentence[:40]} is universally prohibited under standard protocols.", "is_correct": False},
-                        {"option_key": "C", "option_text": f"The process ignores {key_term} and substitutes static configuration.", "is_correct": False},
-                        {"option_key": "D", "option_text": f"None of the above statements apply to {key_term}.", "is_correct": False}
-                    ]
+                    "options": opts
                 })
 
             elif q_type == "true_false":
@@ -651,7 +674,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
                     "topic_name": topic,
                     "question_type": "true_false",
                     "stem": f"True or False: {stem_txt}",
-                    "explanation": f"Source reference: '{sentence}'. The statement is {is_true}.",
+                    "explanation": f"Source reference: '{sentence}'. The statement is {is_true} (Option {'A' if is_true else 'B'}).",
                     "difficulty": difficulty,
                     "bloom_taxonomy": bloom,
                     "confidence_score": 0.96,
@@ -663,76 +686,95 @@ Return ONLY a valid JSON array of objects with the exact schema:
                 })
 
             elif q_type == "fill_blank":
+                opts, correct_key = _build_randomized_4_options(
+                    key_term,
+                    f"Deprecated_{key_term}",
+                    "Synchronous_Blocker",
+                    "Global_Override"
+                )
                 blank_sentence = sentence.replace(key_term, "__________", 1)
                 questions.append({
                     "topic_name": topic,
                     "question_type": "fill_blank",
                     "stem": f"Fill in the blank: '{blank_sentence}'",
-                    "explanation": f"The missing term is '{key_term}', completing the principle: '{sentence}'.",
+                    "explanation": f"The missing term is '{key_term}' (Option {correct_key}), completing the principle: '{sentence}'.",
                     "difficulty": difficulty,
                     "bloom_taxonomy": bloom,
                     "confidence_score": 0.94,
                     "points": 10.0,
-                    "options": [
-                        {"option_key": "A", "option_text": key_term, "is_correct": True},
-                        {"option_key": "B", "option_text": f"Deprecated_{key_term}", "is_correct": False},
-                        {"option_key": "C", "option_text": "Synchronous_Blocker", "is_correct": False},
-                        {"option_key": "D", "option_text": "Global_Override", "is_correct": False}
-                    ]
+                    "options": opts
                 })
 
             elif q_type == "assertion_reason":
+                opts, correct_key = _build_randomized_4_options(
+                    "Both A and R are true and R is the correct explanation of A.",
+                    "Both A and R are true but R is NOT the correct explanation of A.",
+                    "A is true but R is false.",
+                    "A is false but R is true."
+                )
                 questions.append({
                     "topic_name": topic,
                     "question_type": "assertion_reason",
                     "stem": f"Assertion (A): {sentence}\nReason (R): Rigorous architectural design requires verified factual constraints.",
-                    "explanation": "Both Assertion (A) and Reason (R) are true, and Reason (R) is the correct explanation of Assertion (A).",
+                    "explanation": f"Both Assertion (A) and Reason (R) are true, making Option {correct_key} the correct choice.",
                     "difficulty": difficulty,
                     "bloom_taxonomy": "Analyzing",
                     "confidence_score": 0.95,
                     "points": 10.0,
-                    "options": [
-                        {"option_key": "A", "option_text": "Both A and R are true and R is the correct explanation of A.", "is_correct": True},
-                        {"option_key": "B", "option_text": "Both A and R are true but R is NOT the correct explanation of A.", "is_correct": False},
-                        {"option_key": "C", "option_text": "A is true but R is false.", "is_correct": False},
-                        {"option_key": "D", "option_text": "A is false but R is true.", "is_correct": False}
-                    ]
+                    "options": opts
                 })
 
             elif q_type == "multiselect":
+                raw_multiselect = [
+                    {"text": sentence, "is_correct": True},
+                    {"text": "It complies with standard domain best practices.", "is_correct": True},
+                    {"text": "It degrades execution speed by 500%.", "is_correct": False},
+                    {"text": "It invalidates all database transactions unconditionally.", "is_correct": False}
+                ]
+                random.shuffle(raw_multiselect)
+                keys = ["A", "B", "C", "D"]
+                final_opts = []
+                correct_keys_list = []
+                for idx, item in enumerate(raw_multiselect):
+                    key = keys[idx]
+                    if item["is_correct"]:
+                        correct_keys_list.append(key)
+                    final_opts.append({
+                        "option_key": key,
+                        "option_text": item["text"],
+                        "is_correct": item["is_correct"]
+                    })
+                corr_str = " and ".join(correct_keys_list)
                 questions.append({
                     "topic_name": topic,
                     "question_type": "multiselect",
                     "stem": f"Which of the following are valid characteristics related to: '{sentence[:60]}...'? (Select all that apply)",
-                    "explanation": f"Options A and B represent core verified principles from the document: '{sentence}'.",
+                    "explanation": f"Options {corr_str} represent core verified principles from the document: '{sentence}'.",
                     "difficulty": difficulty,
                     "bloom_taxonomy": "Evaluating",
                     "confidence_score": 0.93,
                     "points": 10.0,
-                    "options": [
-                        {"option_key": "A", "option_text": sentence, "is_correct": True},
-                        {"option_key": "B", "option_text": f"It complies with standard domain best practices.", "is_correct": True},
-                        {"option_key": "C", "option_text": "It degrades execution speed by 500%.", "is_correct": False},
-                        {"option_key": "D", "option_text": "It invalidates all database transactions unconditionally.", "is_correct": False}
-                    ]
+                    "options": final_opts
                 })
 
             else:  # scenario or default MCQ
+                opts, correct_key = _build_randomized_4_options(
+                    f"Integrate automated verification for: {sentence[:60]}...",
+                    "Bypass validation checks to minimize initial configuration time.",
+                    "De-scope the module and disable logging.",
+                    "Delegate execution to unmonitored client-side scripts."
+                )
                 questions.append({
                     "topic_name": topic,
                     "question_type": "scenario",
                     "stem": f"Scenario: An enterprise engineering team encounters the following domain context: '{sentence}'. As the system architect, how should you address this scenario?",
-                    "explanation": f"Applying principles from the text: '{sentence}' establishes that Option A provides the optimal architectural outcome.",
+                    "explanation": f"Applying principles from the text: '{sentence}' establishes that Option {correct_key} provides the optimal architectural outcome.",
                     "difficulty": difficulty,
                     "bloom_taxonomy": "Creating",
                     "confidence_score": 0.97,
                     "points": 10.0,
-                    "options": [
-                        {"option_key": "A", "option_text": f"Integrate automated verification for: {sentence[:60]}...", "is_correct": True},
-                        {"option_key": "B", "option_text": "Bypass validation checks to minimize initial configuration time.", "is_correct": False},
-                        {"option_key": "C", "option_text": "De-scope the module and disable logging.", "is_correct": False},
-                        {"option_key": "D", "option_text": "Delegate execution to unmonitored client-side scripts.", "is_correct": False}
-                    ]
+                    "options": opts
                 })
 
         return questions
+

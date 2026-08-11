@@ -67,7 +67,12 @@ async def generate_quiz(
         pass
 
     # Re-fetch quiz with populated questions & options
-    stmt_full = select(Quiz).where(Quiz.id == quiz.id).options(selectinload(Quiz.questions).selectinload(Question.options))
+    stmt_full = (
+        select(Quiz)
+        .where(Quiz.id == quiz.id)
+        .execution_options(populate_existing=True)
+        .options(selectinload(Quiz.questions).selectinload(Question.options))
+    )
     res_full = await db.execute(stmt_full)
     quiz_loaded = res_full.scalars().first() or quiz
 

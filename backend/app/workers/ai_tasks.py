@@ -1,7 +1,17 @@
 import asyncio
 import logging
 from typing import Dict, Any, Optional
-from app.core.celery_app import celery_app
+try:
+    from app.core.celery_app import celery_app
+except Exception:
+    celery_app = None
+
+def _task_fallback(*args, **kwargs):
+    def wrapper(fn):
+        return fn
+    return wrapper
+
+task_dec = celery_app.task if (celery_app and hasattr(celery_app, "task")) else _task_fallback
 from app.core.database import AsyncSessionLocal
 from app.models.models import UploadedFile, Quiz, Question, QuestionOption, ActivityLog
 from app.services.ai_generator import AIGeneratorService, MCQExtractor
@@ -127,7 +137,7 @@ async def _async_generate_quiz(
     JobTracker.set_job_status(job_id, "completed", progress=1.0, result={"quiz_id": quiz_id, "question_count": len(raw_questions)})
     return len(raw_questions)
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=5, retry_backoff=True)
+@task_dec(bind=True, max_retries=3, default_retry_delay=5, retry_backoff=True)
 def generate_quiz_task(
     self,
     job_id: str,

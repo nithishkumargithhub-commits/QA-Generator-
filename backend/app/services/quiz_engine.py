@@ -42,10 +42,10 @@ class QuizEngine:
         res_opt = await db.execute(stmt_opt)
         options = res_opt.scalars().all()
 
-        correct_keys = [opt.option_key for opt in options if opt.is_correct]
+        correct_keys = [opt.option_key.strip().upper() for opt in options if opt.is_correct]
         
-        # Check correctness
-        selected_set = set(selected_options)
+        # Check correctness with normalized case and whitespace stripping
+        selected_set = set(str(s).strip().upper() for s in selected_options if str(s).strip())
         correct_set = set(correct_keys)
         is_correct = (selected_set == correct_set) and (len(selected_set) > 0)
         marks_obtained = question.points if is_correct else 0.0
