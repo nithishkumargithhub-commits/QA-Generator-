@@ -17,7 +17,7 @@ def clean_math_and_text_formatting(text: str) -> str:
     if not text:
         return ""
     
-    s = str(text)
+    s = text
 
     # Standard LaTeX set & number representations
     s = re.sub(r'\\mathbb\{R\}', 'ℝ', s)
@@ -407,12 +407,13 @@ Return ONLY a valid JSON array of objects with the exact schema:
 """
         headers = {"Content-Type": "application/json"}
         payload = {}
+        url = ""
 
         if settings.GEMINI_API_KEY:
             gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
             for model_name in gemini_models:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
-                payload = {
+                url_gemini = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
+                payload_gemini = {
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "temperature": 0.7,
@@ -421,7 +422,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
                 }
                 async with httpx.AsyncClient(timeout=45.0) as client:
                     try:
-                        resp = await client.post(url, headers=headers, json=payload)
+                        resp = await client.post(url_gemini, headers=headers, json=payload_gemini)
                         if resp.status_code == 200:
                             data = resp.json()
                             content = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -433,7 +434,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
                     except Exception as err:
                         logger.warning(f"Gemini model {model_name} failed: {err}")
 
-        elif settings.OPENAI_API_KEY:
+        if settings.OPENAI_API_KEY:
             url = "https://api.openai.com/v1/chat/completions"
             headers["Authorization"] = f"Bearer {settings.OPENAI_API_KEY}"
             payload = {
@@ -450,7 +451,8 @@ Return ONLY a valid JSON array of objects with the exact schema:
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7
             }
-        else:
+
+        if not url:
             return []
 
         async with httpx.AsyncClient(timeout=45.0) as client:
