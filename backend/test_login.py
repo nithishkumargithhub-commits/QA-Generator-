@@ -11,4 +11,6 @@ async def main():
         print(f"Status: {resp.status_code}")
         print(f"Response: {resp.text}")
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
+

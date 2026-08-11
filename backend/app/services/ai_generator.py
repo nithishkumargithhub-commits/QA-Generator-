@@ -410,7 +410,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
         url = ""
 
         if settings.GEMINI_API_KEY:
-            gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+            gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
             for model_name in gemini_models:
                 url_gemini = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
                 payload_gemini = {
@@ -420,7 +420,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
                         "responseMimeType": "application/json"
                     }
                 }
-                async with httpx.AsyncClient(timeout=45.0) as client:
+                async with httpx.AsyncClient(timeout=15.0) as client:
                     try:
                         resp = await client.post(url_gemini, headers=headers, json=payload_gemini)
                         if resp.status_code == 200:
@@ -431,6 +431,9 @@ Return ONLY a valid JSON array of objects with the exact schema:
                                 return parsed["questions"]
                             elif isinstance(parsed, list):
                                 return parsed
+                        elif resp.status_code in (400, 401, 403):
+                            logger.warning(f"Gemini API key rejected ({resp.status_code}). Stopping model retries.")
+                            break
                     except Exception as err:
                         logger.warning(f"Gemini model {model_name} failed: {err}")
 
@@ -519,7 +522,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
 
         try:
             if settings.GEMINI_API_KEY:
-                gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+                gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
                 for model_name in gemini_models:
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
                     payload = {
@@ -529,7 +532,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
                             "responseMimeType": "application/json"
                         }
                     }
-                    async with httpx.AsyncClient(timeout=60.0) as client:
+                    async with httpx.AsyncClient(timeout=15.0) as client:
                         resp = await client.post(url, headers=headers, json=payload)
                         if resp.status_code == 200:
                             data = resp.json()
@@ -558,6 +561,9 @@ Return ONLY a valid JSON array of objects with the exact schema:
 
                             logger.info(f"Successfully verified {len(questions)} questions using Gemini model {model_name}.")
                             return questions
+                        elif resp.status_code in (400, 401, 403):
+                            logger.warning(f"Gemini API key rejected ({resp.status_code}). Stopping verification retries.")
+                            break
             elif settings.OPENAI_API_KEY:
                 url = "https://api.openai.com/v1/chat/completions"
                 headers["Authorization"] = f"Bearer {settings.OPENAI_API_KEY}"
@@ -780,3 +786,5 @@ Return ONLY a valid JSON array of objects with the exact schema:
 
         return questions
 
+
+ai_generator = AIGeneratorService()

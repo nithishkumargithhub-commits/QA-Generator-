@@ -221,3 +221,79 @@ class RefreshToken(Base):
     expires_at = Column(DateTime, nullable=False)
     is_revoked = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class Flashcard(Base):
+    __tablename__ = "flashcards"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(String(36), ForeignKey("uploaded_files.id", ondelete="CASCADE"), nullable=True, index=True)
+    front_text = Column(Text, nullable=False)
+    back_text = Column(Text, nullable=False)
+    category = Column(String(100), default="General", index=True)
+    easiness_factor = Column(Float, default=2.5) # SM-2 EF factor
+    interval_days = Column(Integer, default=1)   # Days until next review
+    repetitions = Column(Integer, default=0)     # Successful reviews count
+    next_review_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class Classroom(Base):
+    __tablename__ = "classrooms"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    teacher_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(150), nullable=False)
+    code = Column(String(10), unique=True, nullable=False, index=True) # 6-char unique code
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class ClassroomMember(Base):
+    __tablename__ = "classroom_members"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    classroom_id = Column(String(36), ForeignKey("classrooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class Assignment(Base):
+    __tablename__ = "assignments"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    classroom_id = Column(String(36), ForeignKey("classrooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = Column(String(36), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    due_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class Certificate(Base):
+    __tablename__ = "certificates"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = Column(String(36), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(36), ForeignKey("quiz_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    certificate_code = Column(String(50), unique=True, nullable=False, index=True)
+    score_percentage = Column(Float, nullable=False)
+    issued_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class StudyPlan(Base):
+    __tablename__ = "study_plans"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = Column(String(36), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(36), ForeignKey("quiz_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_data = Column(JSON, nullable=False) # List of weak topics, recommended pages/sections
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class LiveSession(Base):
+    __tablename__ = "live_sessions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    host_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = Column(String(36), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    room_code = Column(String(10), unique=True, nullable=False, index=True)
+    status = Column(String(20), default="waiting", nullable=False) # waiting, active, finished
+    current_question_index = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+

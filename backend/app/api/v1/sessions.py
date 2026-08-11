@@ -115,7 +115,9 @@ async def complete_session(
     session.pass_status = (percentage >= passing)
 
     if session.started_at:
-        session.total_time_seconds = int((datetime.now(timezone.utc) - session.started_at.replace(tzinfo=timezone.utc)).total_seconds())
+        st = session.started_at if session.started_at.tzinfo else session.started_at.replace(tzinfo=timezone.utc)
+        session.total_time_seconds = max(0, int((datetime.now(timezone.utc) - st).total_seconds()))
+
 
     # Log Activity
     log = ActivityLog(

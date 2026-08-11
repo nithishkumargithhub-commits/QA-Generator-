@@ -226,7 +226,61 @@ class ApiClient {
   async getUserHistory(userId: string): Promise<any> {
     return this.request<any>(`/admin/users/${userId}/history`);
   }
+
+  // Feature Suite APIs
+  async askTutor(params: { document_id?: string; question_stem?: string; selected_option?: string; user_query: string }): Promise<{ answer: string; context_used?: string; source_section?: string }> {
+    return this.request('/tutor/ask', { method: 'POST', body: JSON.stringify(params) });
+  }
+
+  async generateFlashcards(documentId: string): Promise<any[]> {
+    return this.request(`/flashcards/generate/${documentId}`, { method: 'POST' });
+  }
+
+  async getDueFlashcards(): Promise<any[]> {
+    return this.request('/flashcards/due');
+  }
+
+  async reviewFlashcard(cardId: string, rating: number): Promise<any> {
+    return this.request(`/flashcards/${cardId}/review`, { method: 'POST', body: JSON.stringify({ rating }) });
+  }
+
+  async getNextCATQuestion(sessionId: string): Promise<any> {
+    return this.request(`/cat/next-question/${sessionId}`);
+  }
+
+  async createClassroom(data: { name: string; description?: string }): Promise<any> {
+    return this.request('/classrooms', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getClassrooms(): Promise<any[]> {
+    return this.request('/classrooms');
+  }
+
+  async joinClassroom(code: string): Promise<any> {
+    return this.request('/classrooms/join', { method: 'POST', body: JSON.stringify({ code }) });
+  }
+
+  async createAssignment(data: { classroom_id: string; quiz_id: string; title: string; due_date?: string }): Promise<any> {
+    return this.request('/classrooms/assignments', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getClassroomAssignments(classroomId: string): Promise<any[]> {
+    return this.request(`/classrooms/${classroomId}/assignments`);
+  }
+
+  async issueCertificate(sessionId: string): Promise<any> {
+    return this.request(`/certificates/issue/${sessionId}`, { method: 'POST' });
+  }
+
+  async generateStudyPlan(sessionId: string): Promise<any> {
+    return this.request(`/study-plans/generate/${sessionId}`, { method: 'POST' });
+  }
+
+  async createLiveRoom(quizId: string): Promise<{ room_code: string; status: string }> {
+    return this.request(`/live/rooms/create/${quizId}`, { method: 'POST' });
+  }
 }
 
 
 export const api = new ApiClient();
+

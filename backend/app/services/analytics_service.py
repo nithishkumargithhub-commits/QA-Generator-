@@ -88,9 +88,14 @@ class AnalyticsService:
         recommendations.append("Maintain active practice to improve speed and knowledge retention.")
 
         recent_trend = [
-            {"date": s.started_at.strftime("%b %d"), "score": s.percentage, "time": s.total_time_seconds}
-            for s in sorted(completed, key=lambda x: x.started_at)[-10:]
+            {
+                "date": s.started_at.strftime("%b %d") if s.started_at else "Recent",
+                "score": s.percentage,
+                "time": s.total_time_seconds
+            }
+            for s in sorted(completed, key=lambda x: x.started_at or datetime.min)[-10:]
         ]
+
 
         return {
             "total_quizzes_taken": total_taken,

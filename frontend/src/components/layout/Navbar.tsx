@@ -31,14 +31,17 @@ export const Navbar: React.FC = () => {
               <Link to="/dashboard" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
                 <LayoutDashboard className="w-4 h-4 text-indigo-400" /> Dashboard
               </Link>
-              <Link to="/upload" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
-                <Sparkles className="w-4 h-4 text-purple-400" /> AI Generator
+              <Link to="/flashcards" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
+                <Sparkles className="w-4 h-4 text-amber-400" /> Flashcards
               </Link>
-              <Link to="/my-documents" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
-                <FileText className="w-4 h-4 text-emerald-400" /> Documents
+              <Link to="/question-bank" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
+                <FileText className="w-4 h-4 text-sky-400" /> Question Bank
               </Link>
-              <Link to="/analytics" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
-                <BarChart2 className="w-4 h-4 text-amber-400" /> Analytics
+              <Link to="/classrooms" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
+                <BarChart2 className="w-4 h-4 text-emerald-400" /> Classrooms
+              </Link>
+              <Link to="/live" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
+                <Sparkles className="w-4 h-4 text-purple-400" /> Live Battle
               </Link>
               {user?.role === 'Admin' && (
                 <Link to="/admin" className="px-3 py-2 rounded-lg text-sm font-medium text-indigo-300 bg-indigo-950/40 border border-indigo-800/40 hover:bg-indigo-900/40 flex items-center gap-2 transition-colors">

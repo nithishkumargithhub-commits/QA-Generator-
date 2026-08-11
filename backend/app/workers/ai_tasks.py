@@ -72,67 +72,78 @@ async def _async_generate_quiz(
         quiz = res_q.scalars().first()
 
         if quiz:
-            created_questions = []
-            for q_data in raw_questions:
-                raw_opts = q_data.get("options", [])
-                q_type = q_data.get("question_type", "mcq")
-                if not raw_opts:
-                    continue
+            # Check if questions were already created inline
+            stmt_existing = select(Question).where(Question.quiz_id == quiz.id)
+            res_existing = await session.execute(stmt_existing)
+            existing = res_existing.scalars().all()
 
-                placeholder_pool = [
-                    "None of the above",
-                    "All of the above",
-                    "Cannot be determined",
-                    "The information provided is insufficient",
-                ]
-                if q_type in ("mcq", "scenario", "assertion_reason", "fill_blank") and len(raw_opts) < 4:
-                    existing_keys = {o.get("option_key", "").upper() for o in raw_opts}
-                    placeholders_added = 0
-                    for key_letter in ["A", "B", "C", "D"]:
-                        if key_letter not in existing_keys and placeholders_added < (4 - len(raw_opts)):
-                            raw_opts.append({
-                                "option_key": key_letter,
-                                "option_text": placeholder_pool[placeholders_added % len(placeholder_pool)],
-                                "is_correct": False,
-                            })
-                            placeholders_added += 1
+            if not existing:
+                created_questions = []
+                for q_data in raw_questions:
+                    raw_opts = q_data.get("options", [])
+                    q_type = q_data.get("question_type", "mcq")
+                    if not raw_opts:
+                        continue
 
-                raw_opts_sorted = sorted(raw_opts, key=lambda o: o.get("option_key", "Z").upper())
+                    placeholder_pool = [
+                        "None of the above",
+                        "All of the above",
+                        "Cannot be determined",
+                        "The information provided is insufficient",
+                    ]
+                    if q_type in ("mcq", "scenario", "assertion_reason", "fill_blank") and len(raw_opts) < 4:
+                        existing_keys = {o.get("option_key", "").upper() for o in raw_opts}
+                        placeholders_added = 0
+                        for key_letter in ["A", "B", "C", "D"]:
+                            if key_letter not in existing_keys and placeholders_added < (4 - len(raw_opts)):
+                                raw_opts.append({
+                                    "option_key": key_letter,
+                                    "option_text": placeholder_pool[placeholders_added % len(placeholder_pool)],
+                                    "is_correct": False,
+                                })
+                                placeholders_added += 1
 
-                opts_list = [
-                    QuestionOption(
-                        option_key=opt.get("option_key", "A"),
-                        option_text=opt.get("option_text", ""),
-                        is_correct=opt.get("is_correct", False),
-                        match_pair=opt.get("match_pair", None)
-                    ) for opt in raw_opts_sorted
-                ]
-                q = Question(
-                    quiz_id=quiz.id,
-                    topic_name=q_data.get("topic_name", "General"),
-                    question_type=q_type,
-                    stem=q_data.get("stem", "Question stem..."),
-                    explanation=q_data.get("explanation", ""),
-                    difficulty=q_data.get("difficulty", req_data.get("difficulty", "Medium")),
-                    bloom_taxonomy=q_data.get("bloom_taxonomy", "Understanding"),
-                    confidence_score=q_data.get("confidence_score", 0.95),
-                    points=q_data.get("points", 10.0),
-                    options=opts_list
+                    raw_opts_sorted = sorted(raw_opts, key=lambda o: o.get("option_key", "Z").upper())
+
+                    opts_list = [
+                        QuestionOption(
+                            option_key=opt.get("option_key", "A"),
+                            option_text=opt.get("option_text", ""),
+                            is_correct=opt.get("is_correct", False),
+                            match_pair=opt.get("match_pair", None)
+                        ) for opt in raw_opts_sorted
+                    ]
+                    q = Question(
+                        quiz_id=quiz.id,
+                        topic_name=q_data.get("topic_name", "General"),
+                        question_type=q_type,
+                        stem=q_data.get("stem", "Question stem..."),
+                        explanation=q_data.get("explanation", ""),
+                        difficulty=q_data.get("difficulty", req_data.get("difficulty", "Medium")),
+                        bloom_taxonomy=q_data.get("bloom_taxonomy", "Understanding"),
+                        confidence_score=q_data.get("confidence_score", 0.95),
+                        points=q_data.get("points", 10.0),
+                        options=opts_list
+                    )
+                    session.add(q)
+                    created_questions.append(q)
+
+                quiz.question_count = len(created_questions)
+                quiz.total_marks = sum(q.points for q in created_questions)
+
+                log = ActivityLog(
+                    user_id=user_id,
+                    action="GENERATE_QUIZ",
+                    details=f"Generated quiz '{quiz.title}' with {len(created_questions)} questions."
                 )
-                session.add(q)
-                created_questions.append(q)
+                session.add(log)
+                await session.commit()
+                logger.info(f"Quiz {quiz_id} generated successfully with {len(created_questions)} questions.")
+            else:
+                quiz.question_count = len(existing)
+                quiz.total_marks = sum(q.points for q in existing)
+                await session.commit()
 
-            quiz.question_count = len(created_questions)
-            quiz.total_marks = float(len(created_questions))
-
-            log = ActivityLog(
-                user_id=user_id,
-                action="GENERATE_QUIZ",
-                details=f"Generated quiz '{quiz.title}' with {len(created_questions)} questions via background task."
-            )
-            session.add(log)
-            await session.commit()
-            logger.info(f"Quiz {quiz_id} generated successfully with {len(created_questions)} questions.")
 
     JobTracker.set_job_status(job_id, "completed", progress=1.0, result={"quiz_id": quiz_id, "question_count": len(raw_questions)})
     return len(raw_questions)

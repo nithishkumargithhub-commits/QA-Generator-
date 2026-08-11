@@ -39,4 +39,6 @@ Return ONLY a valid JSON object:
             except Exception as e:
                 print(f"Model {m} error: {e}")
 
-asyncio.run(test_solve())
+if __name__ == "__main__":
+    asyncio.run(test_solve())
+

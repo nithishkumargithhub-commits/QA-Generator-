@@ -1,6 +1,16 @@
 import asyncio
 import logging
-from app.core.celery_app import celery_app
+try:
+    from app.core.celery_app import celery_app
+except Exception:
+    celery_app = None
+
+def _task_fallback(*args, **kwargs):
+    def wrapper(fn):
+        return fn
+    return wrapper
+
+task_dec = celery_app.task if (celery_app and hasattr(celery_app, "task")) else _task_fallback
 from app.core.database import AsyncSessionLocal
 from app.models.models import UploadedFile
 from app.services.document_processor import DocumentProcessor
@@ -44,7 +54,8 @@ async def _async_process_document(document_id: str, file_path: str, mime_type: s
     )
     return processed
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=5, retry_backoff=True)
+@task_dec(bind=True, max_retries=3, default_retry_delay=5, retry_backoff=True)
+
 def process_document_task(self, document_id: str, file_path: str, mime_type: str):
     try:
         return asyncio.run(_async_process_document(document_id, file_path, mime_type))
