@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from fastapi import HTTPException, status
 from app.models.models import User, RefreshToken, ActivityLog
 from app.schemas.auth import LoginRequest, RegisterRequest, PasswordResetRequest
@@ -14,7 +14,11 @@ logger = logging.getLogger("auth_service")
 class AuthService:
     @staticmethod
     async def authenticate_user(db: AsyncSession, username: str, password: str) -> User:
-        stmt = select(User).where((User.username == username) | (User.email == username))
+        clean_user = username.strip()
+        stmt = select(User).where(
+            (func.lower(User.username) == clean_user.lower()) |
+            (func.lower(User.email) == clean_user.lower())
+        )
         result = await db.execute(stmt)
         user = result.scalars().first()
         
@@ -42,8 +46,15 @@ class AuthService:
 
     @staticmethod
     async def register_user(db: AsyncSession, req: RegisterRequest) -> User:
-        # Check existing username/email
-        stmt = select(User).where((User.username == req.username) | (User.email == req.email))
+        clean_username = req.username.strip()
+        clean_email = req.email.strip().lower()
+        clean_name = (req.full_name or clean_username).strip()
+
+        # Check existing username/email (case-insensitive)
+        stmt = select(User).where(
+            (func.lower(User.username) == clean_username.lower()) |
+            (func.lower(User.email) == clean_email.lower())
+        )
         result = await db.execute(stmt)
         if result.scalars().first():
             raise HTTPException(
@@ -53,10 +64,10 @@ class AuthService:
             
         hashed = get_password_hash(req.password)
         new_user = User(
-            username=req.username,
-            email=req.email,
+            username=clean_username,
+            email=clean_email,
             hashed_password=hashed,
-            full_name=req.full_name or req.username,
+            full_name=clean_name,
             role="Student"  # Security: Public signups are always Student accounts. Admin status must be granted by an Admin.
         )
         db.add(new_user)

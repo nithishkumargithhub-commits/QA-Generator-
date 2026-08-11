@@ -26,11 +26,8 @@ class Settings(BaseSettings):
         "*"
     ]
     
-    # Database (Defaults to SQLite for instant local execution if PostgreSQL is not specified)
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "sqlite+aiosqlite:///./qa_generator.db"
-    )
+    # Database (Supports PostgreSQL via env or absolute SQLite path for consistent local execution)
+    DATABASE_URL: str = os.getenv("DATABASE_URL") or os.getenv("INTERNAL_DATABASE_URL") or f"sqlite+aiosqlite:///{os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'qa_generator.db')).replace('\\', '/')}"
     
     # Redis Cache (Fallback to in-memory if Redis not available)
     REDIS_URL: Optional[str] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
