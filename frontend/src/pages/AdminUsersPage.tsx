@@ -28,10 +28,23 @@ export const AdminUsersPage: React.FC = () => {
     fetchUsers();
   }, [search]);
 
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const handleToggleStatus = async (user: User) => {
     await api.toggleUserStatus(user.id, {
       is_active: !user.is_active,
     });
+    setToastMessage(`User '${user.username}' is now ${!user.is_active ? 'Active' : 'Disabled'}. Changes saved to database.`);
+    setTimeout(() => setToastMessage(null), 4000);
+    fetchUsers();
+  };
+
+  const handleToggleSuspension = async (user: User) => {
+    await api.toggleUserStatus(user.id, {
+      is_suspended: !user.is_suspended,
+    });
+    setToastMessage(`User '${user.username}' is now ${!user.is_suspended ? 'Suspended' : 'Unsuspended'}. Changes saved to database.`);
+    setTimeout(() => setToastMessage(null), 4000);
     fetchUsers();
   };
 
@@ -39,8 +52,11 @@ export const AdminUsersPage: React.FC = () => {
     await api.toggleUserStatus(user.id, {
       role: newRole,
     });
+    setToastMessage(`User '${user.username}' role updated to '${newRole}'. Changes saved to database.`);
+    setTimeout(() => setToastMessage(null), 4000);
     fetchUsers();
   };
+
 
   const handleInspectHistory = async (userId: string) => {
     setSelectedUserId(userId);
@@ -77,6 +93,18 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       </div>
 
+      {toastMessage && (
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>{toastMessage}</span>
+          </div>
+          <button onClick={() => setToastMessage(null)} className="text-emerald-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="glass-panel rounded-3xl border border-slate-800 overflow-hidden">
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase font-semibold">
@@ -108,11 +136,18 @@ export const AdminUsersPage: React.FC = () => {
                   </select>
                 </td>
                 <td className="p-4">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                    u.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    {u.is_active ? 'Active' : 'Disabled'}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase w-fit ${
+                      u.is_active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {u.is_active ? 'Active' : 'Disabled'}
+                    </span>
+                    {u.is_suspended && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase w-fit bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        Suspended
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="p-4 text-right space-x-2">
                   <button
@@ -127,12 +162,19 @@ export const AdminUsersPage: React.FC = () => {
                   >
                     {u.is_active ? 'Disable' : 'Enable'}
                   </button>
+                  <button
+                    onClick={() => handleToggleSuspension(u)}
+                    className="px-3 py-1 rounded-lg bg-slate-950 border border-amber-900/50 hover:bg-amber-900/20 text-amber-300 font-semibold"
+                  >
+                    {u.is_suspended ? 'Unsuspend' : 'Suspend'}
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
 
       {/* User History Inspector Modal */}
       {selectedUserId && (

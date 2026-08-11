@@ -7,6 +7,50 @@ import {
 } from 'lucide-react';
 import { useQuizStore } from '../store/useQuizStore';
 
+export const formatMathText = (text: string): string => {
+  if (!text) return '';
+  let s = text;
+  return s
+    .replace(/\\mathbb\{R\}/g, 'ℝ')
+    .replace(/\\mathbb\{C\}/g, 'ℂ')
+    .replace(/\\mathbb\{N\}/g, 'ℕ')
+    .replace(/\\mathbb\{Z\}/g, 'ℤ')
+    .replace(/\\mathbb\{Q\}/g, 'ℚ')
+    .replace(/\\mathbf\{([^}]+)\}/g, '$1')
+    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\in\b/g, '∈')
+    .replace(/\\notin\b/g, '∉')
+    .replace(/\\times\b/g, '×')
+    .replace(/\\cdot\b/g, '·')
+    .replace(/\\le\b/g, '≤')
+    .replace(/\\ge\b/g, '≥')
+    .replace(/\\ne\b/g, '≠')
+    .replace(/\\approx\b/g, '≈')
+    .replace(/\\pm\b/g, '±')
+    .replace(/\\to\b/g, '→')
+    .replace(/\\rightarrow\b/g, '→')
+    .replace(/\\alpha\b/g, 'α')
+    .replace(/\\beta\b/g, 'β')
+    .replace(/\\gamma\b/g, 'γ')
+    .replace(/\\delta\b/g, 'δ')
+    .replace(/\\epsilon\b/g, 'ε')
+    .replace(/\\theta\b/g, 'θ')
+    .replace(/\\lambda\b/g, 'λ')
+    .replace(/\\mu\b/g, 'μ')
+    .replace(/\\sigma\b/g, 'σ')
+    .replace(/\\pi\b/g, 'π')
+    .replace(/\\omega\b/g, 'ω')
+    .replace(/\\Delta\b/g, 'Δ')
+    .replace(/\\Sigma\b/g, 'Σ')
+    .replace(/\^\{([^}]+)\}/g, '^$1')
+    .replace(/_\{([^}]+)\}/g, '_$1')
+    .replace(/\$\$([^\$]+)\$\$/g, '$1')
+    .replace(/\$([^\$]+)\$/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+};
+
 export const QuizPlayerPage: React.FC = () => {
   const { quizId } = useParams<{ quizId: string }>();
   const navigate = useNavigate();
@@ -27,16 +71,36 @@ export const QuizPlayerPage: React.FC = () => {
     setNote,
     completeQuiz,
     isLoading,
+    loadAndStartQuiz,
   } = useQuizStore();
 
   const [questionTimer, setQuestionTimer] = useState(60);
   const [showNotes, setShowNotes] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const question = currentQuiz?.questions?.[currentIndex];
   const feedback = question?.id ? questionFeedback[question.id] : null;
   const currentSelected = question?.id ? selectedAnswers[question.id] || [] : [];
   const isBookmarked = question?.id ? !!bookmarks[question.id] : false;
+
+  // Auto-fetch Quiz & initialize session if missing or reloaded
+  useEffect(() => {
+    async function initSession() {
+      if (quizId && (!currentQuiz || currentQuiz.id !== quizId || !currentQuiz.questions || currentQuiz.questions.length === 0)) {
+        try {
+          setLoadError(null);
+          const loaded = await loadAndStartQuiz(quizId);
+          if (!loaded || !loaded.questions || loaded.questions.length === 0) {
+            setLoadError('Assessment questions could not be loaded. Please try generating again.');
+          }
+        } catch (err: any) {
+          setLoadError(err.message || 'Failed to load assessment session.');
+        }
+      }
+    }
+    initSession();
+  }, [quizId, currentQuiz?.id]);
 
   // Question Timer Countdown
   useEffect(() => {
@@ -71,11 +135,24 @@ export const QuizPlayerPage: React.FC = () => {
   if (!currentQuiz || !question) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center space-y-4">
-        <Sparkles className="w-12 h-12 text-indigo-400 mx-auto animate-pulse" />
-        <h2 className="text-2xl font-bold text-slate-100">Loading Assessment Session...</h2>
-        <button onClick={() => navigate('/dashboard')} className="gradient-btn px-6 py-2.5 rounded-xl text-sm font-bold">
-          Return to Dashboard
-        </button>
+        {loadError ? (
+          <>
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
+            <h2 className="text-2xl font-bold text-slate-100">{loadError}</h2>
+            <button onClick={() => navigate('/dashboard')} className="gradient-btn px-6 py-2.5 rounded-xl text-sm font-bold">
+              Return to Dashboard
+            </button>
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-12 h-12 text-indigo-400 mx-auto animate-pulse" />
+            <h2 className="text-2xl font-bold text-slate-100">Loading Assessment Session...</h2>
+            <p className="text-slate-400 text-sm">Setting up questions and timer...</p>
+            <button onClick={() => navigate('/dashboard')} className="gradient-btn px-6 py-2.5 rounded-xl text-sm font-bold mt-4">
+              Return to Dashboard
+            </button>
+          </>
+        )}
       </div>
     );
   }
@@ -157,7 +234,7 @@ export const QuizPlayerPage: React.FC = () => {
         </div>
 
         <h2 className="text-xl sm:text-2xl font-bold text-slate-100 leading-snug">
-          {question.stem}
+          {formatMathText(question.stem)}
         </h2>
 
         {/* Question Options Grid */}
@@ -190,7 +267,7 @@ export const QuizPlayerPage: React.FC = () => {
                 }`}>
                   {opt.option_key}
                 </span>
-                <span className="text-sm pt-1 leading-relaxed flex-1">{opt.option_text}</span>
+                <span className="text-sm pt-1 leading-relaxed flex-1">{formatMathText(opt.option_text)}</span>
               </button>
             );
           })}
@@ -237,7 +314,7 @@ export const QuizPlayerPage: React.FC = () => {
               </div>
 
               <p className="text-xs sm:text-sm leading-relaxed mb-3 opacity-90">
-                {feedback.explanation}
+                {formatMathText(feedback.explanation)}
               </p>
 
               {!feedback.is_correct && (

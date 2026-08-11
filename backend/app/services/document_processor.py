@@ -115,11 +115,12 @@ class DocumentProcessor:
 
     @staticmethod
     def _clean_text(text: str) -> str:
+        from app.services.ai_generator import clean_math_and_text_formatting
         lines = text.splitlines()
         clean_lines = []
         consecutive_blanks = 0
         for l in lines:
-            stripped = l.rstrip()
+            stripped = clean_math_and_text_formatting(l.rstrip())
             if not stripped:
                 consecutive_blanks += 1
                 if consecutive_blanks <= 1:

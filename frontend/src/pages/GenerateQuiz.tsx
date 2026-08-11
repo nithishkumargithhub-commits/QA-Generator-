@@ -67,10 +67,10 @@ export const GenerateQuizPage: React.FC = () => {
         mode: quizMode === 'extract' ? 'extract' : 'Standard',
       });
 
-      // Poll quiz until background worker finishes populating questions
+      // Poll quiz briefly if questions are still populating
       let attempts = 0;
-      while ((!quiz.questions || quiz.questions.length === 0) && attempts < 20) {
-        await new Promise((res) => setTimeout(res, 1000));
+      while ((!quiz.questions || quiz.questions.length === 0) && attempts < 10) {
+        await new Promise((res) => setTimeout(res, 500));
         attempts++;
         try {
           const updated = await api.getQuiz(quiz.id);
@@ -81,6 +81,10 @@ export const GenerateQuizPage: React.FC = () => {
         } catch (e) {
           break;
         }
+      }
+
+      if (!quiz.questions || quiz.questions.length === 0) {
+        throw new Error('No questions could be generated or extracted from the selected content. Please select a document or provide custom text.');
       }
 
       await startQuiz(quiz);

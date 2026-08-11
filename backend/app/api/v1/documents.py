@@ -77,24 +77,24 @@ async def upload_document(
     await db.commit()
     await db.refresh(doc)
 
-    # Enqueue Background Celery Task
+    # Perform document parsing and text extraction inline to guarantee immediate availability
     from app.workers.job_tracker import JobTracker
-    from app.workers.document_tasks import process_document_task
-    JobTracker.set_job_status(file_id, "queued", progress=0.0)
+    JobTracker.set_job_status(file_id, "processing", progress=0.2)
+    processed = DocumentProcessor.process_file(save_path, doc.mime_type)
+    doc.extracted_text = processed.get("text", "")
+    doc.topic_summary = processed.get("topics", [])
+    doc.chapter_count = processed.get("chapter_count", 0)
+    doc.topic_count = processed.get("topic_count", 0)
+    doc.status = "ready"
+    await db.commit()
+    await db.refresh(doc)
+    JobTracker.set_job_status(file_id, "completed", progress=1.0)
 
     try:
+        from app.workers.document_tasks import process_document_task
         process_document_task.delay(file_id, save_path, doc.mime_type)
-    except Exception as e:
-        # Fallback to inline processing if Celery worker connection is not active
-        processed = DocumentProcessor.process_file(save_path, doc.mime_type)
-        doc.extracted_text = processed["text"]
-        doc.topic_summary = processed["topics"]
-        doc.chapter_count = processed["chapter_count"]
-        doc.topic_count = processed["topic_count"]
-        doc.status = "ready"
-        await db.commit()
-        await db.refresh(doc)
-        JobTracker.set_job_status(file_id, "completed", progress=1.0)
+    except Exception:
+        pass
 
     return doc
 
@@ -148,26 +148,23 @@ async def reprocess_document(
         raise HTTPException(status_code=403, detail="Not authorized to reprocess this document.")
 
 
-    doc.status = "processing"
+    from app.workers.job_tracker import JobTracker
+    JobTracker.set_job_status(document_id, "processing", progress=0.2)
+    processed = DocumentProcessor.process_file(doc.file_path, doc.mime_type)
+    doc.extracted_text = processed.get("text", "")
+    doc.topic_summary = processed.get("topics", [])
+    doc.chapter_count = processed.get("chapter_count", 0)
+    doc.topic_count = processed.get("topic_count", 0)
+    doc.status = "ready"
     await db.commit()
     await db.refresh(doc)
-
-    from app.workers.job_tracker import JobTracker
-    from app.workers.document_tasks import process_document_task
-    JobTracker.set_job_status(document_id, "queued", progress=0.0)
+    JobTracker.set_job_status(document_id, "completed", progress=1.0)
 
     try:
+        from app.workers.document_tasks import process_document_task
         process_document_task.delay(document_id, doc.file_path, doc.mime_type)
     except Exception:
-        processed = DocumentProcessor.process_file(doc.file_path, doc.mime_type)
-        doc.extracted_text = processed["text"]
-        doc.topic_summary = processed["topics"]
-        doc.chapter_count = processed["chapter_count"]
-        doc.topic_count = processed["topic_count"]
-        doc.status = "ready"
-        await db.commit()
-        await db.refresh(doc)
-        JobTracker.set_job_status(document_id, "completed", progress=1.0)
+        pass
 
     return doc
 

@@ -9,6 +9,67 @@ from app.core.config import settings
 logger = logging.getLogger("ai_generator")
 
 
+def clean_math_and_text_formatting(text: str) -> str:
+    r"""
+    Cleans and converts raw LaTeX / mathematical notation (e.g. $W \in \mathbb{R}^{M \times D}$)
+    into clean, beautifully formatted human-readable Unicode text (e.g. W ∈ ℝ^(M×D)).
+    """
+    if not text:
+        return ""
+    
+    s = str(text)
+
+    # Standard LaTeX set & number representations
+    s = re.sub(r'\\mathbb\{R\}', 'ℝ', s)
+    s = re.sub(r'\\mathbb\{C\}', 'ℂ', s)
+    s = re.sub(r'\\mathbb\{N\}', 'ℕ', s)
+    s = re.sub(r'\\mathbb\{Z\}', 'ℤ', s)
+    s = re.sub(r'\\mathbb\{Q\}', 'ℚ', s)
+    s = re.sub(r'\\mathbf\{([^}]+)\}', r'\1', s)
+    s = re.sub(r'\\mathrm\{([^}]+)\}', r'\1', s)
+    s = re.sub(r'\\text\{([^}]+)\}', r'\1', s)
+
+    # Relational & Arithmetic operators
+    s = re.sub(r'\\in\b', '∈', s)
+    s = re.sub(r'\\notin\b', '∉', s)
+    s = re.sub(r'\\times\b', '×', s)
+    s = re.sub(r'\\cdot\b', '·', s)
+    s = re.sub(r'\\le\b', '≤', s)
+    s = re.sub(r'\\ge\b', '≥', s)
+    s = re.sub(r'\\ne\b', '≠', s)
+    s = re.sub(r'\\approx\b', '≈', s)
+    s = re.sub(r'\\pm\b', '±', s)
+    s = re.sub(r'\\to\b', '→', s)
+    s = re.sub(r'\\rightarrow\b', '→', s)
+
+    # Greek letters
+    s = re.sub(r'\\alpha\b', 'α', s)
+    s = re.sub(r'\\beta\b', 'β', s)
+    s = re.sub(r'\\gamma\b', 'γ', s)
+    s = re.sub(r'\\delta\b', 'δ', s)
+    s = re.sub(r'\\epsilon\b', 'ε', s)
+    s = re.sub(r'\\theta\b', 'θ', s)
+    s = re.sub(r'\\lambda\b', 'λ', s)
+    s = re.sub(r'\\mu\b', 'μ', s)
+    s = re.sub(r'\\sigma\b', 'σ', s)
+    s = re.sub(r'\\pi\b', 'π', s)
+    s = re.sub(r'\\omega\b', 'ω', s)
+    s = re.sub(r'\\Delta\b', 'Δ', s)
+    s = re.sub(r'\\Sigma\b', 'Σ', s)
+
+    # Superscript / Subscript bracket cleanup
+    s = re.sub(r'\^\{([^}]+)\}', r'^\1', s)
+    s = re.sub(r'_\{([^}]+)\}', r'_\1', s)
+
+    # Convert inline math delims $...$ or $$...$$
+    s = re.sub(r'\$\$([^\$]+)\$\$', r'\1', s)
+    s = re.sub(r'\$([^\$]+)\$', r'\1', s)
+
+    # Clean double spaces or leading/trailing artifact spaces
+    s = re.sub(r'\s{2,}', ' ', s)
+    return s.strip()
+
+
 class MCQExtractor:
     """
     Parses PDF text that already contains MCQ questions.
@@ -111,12 +172,12 @@ class MCQExtractor:
             # Sort A→B→C→D
             deduped_opts = sorted(seen_keys.items(), key=lambda x: x[0])
 
-            # Build option objects
+            # Build option objects with cleaned math & text formatting
             opts = []
             for (key_upper, opt_text) in deduped_opts:
                 opts.append({
                     "option_key": key_upper,
-                    "option_text": opt_text.strip(),
+                    "option_text": clean_math_and_text_formatting(opt_text.strip()),
                     "is_correct": key_upper == (correct_letter or "").upper()
                 })
 
@@ -130,14 +191,15 @@ class MCQExtractor:
                 opts[0]["is_correct"] = True
                 logger.warning(f"Q{idx}: no answer detected, defaulting to option A.")
 
-            if not stem:
+            clean_stem = clean_math_and_text_formatting(stem)
+            if not clean_stem:
                 continue
 
             results.append({
                 "topic_name": "Extracted from PDF",
                 "question_type": "mcq",
-                "stem": stem,
-                "explanation": f"Extracted directly from source document. Correct answer: {correct_letter or opts[0]['option_key']}.",
+                "stem": clean_stem,
+                "explanation": clean_math_and_text_formatting(f"Extracted directly from source document. Correct answer: {correct_letter or opts[0]['option_key']}."),
                 "difficulty": "Medium",
                 "bloom_taxonomy": "Understanding",
                 "confidence_score": 1.0,
@@ -275,6 +337,16 @@ class AIGeneratorService:
         if not bloom_levels:
             bloom_levels = ["Remembering", "Understanding", "Applying", "Analyzing", "Evaluating", "Creating"]
 
+        def _sanitize(qs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            for q in qs:
+                if isinstance(q, dict):
+                    q["stem"] = clean_math_and_text_formatting(q.get("stem", ""))
+                    q["explanation"] = clean_math_and_text_formatting(q.get("explanation", ""))
+                    for opt in q.get("options", []):
+                        if isinstance(opt, dict):
+                            opt["option_text"] = clean_math_and_text_formatting(opt.get("option_text", ""))
+            return qs
+
         # Attempt API-based generation if keys are present
         if settings.OPENAI_API_KEY or settings.GEMINI_API_KEY or settings.OPENROUTER_API_KEY:
             try:
@@ -282,14 +354,14 @@ class AIGeneratorService:
                     text_content, difficulty, question_count, question_types, bloom_levels
                 )
                 if questions and len(questions) > 0:
-                    return questions
+                    return _sanitize(questions)
             except Exception as e:
                 logger.warning(f"External AI API call failed, switching to local NLP engine: {e}")
 
         # High-Quality Local Heuristic NLP Question Generator Engine
-        return AIGeneratorService._generate_local_heuristic(
+        return _sanitize(AIGeneratorService._generate_local_heuristic(
             text_content, topic_summary, difficulty, question_count, question_types, bloom_levels
-        )
+        ))
 
     @staticmethod
     async def _generate_via_api(
@@ -337,7 +409,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
         payload = {}
 
         if settings.GEMINI_API_KEY:
-            gemini_models = ["gemini-3.6-flash", "gemini-2.0-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+            gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
             for model_name in gemini_models:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
                 payload = {
@@ -445,7 +517,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
 
         try:
             if settings.GEMINI_API_KEY:
-                gemini_models = ["gemini-3.6-flash", "gemini-2.0-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+                gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
                 for model_name in gemini_models:
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
                     payload = {

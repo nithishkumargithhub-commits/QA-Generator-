@@ -15,6 +15,7 @@ interface QuizState {
   isLoading: boolean;
 
   startQuiz: (quiz: Quiz) => Promise<void>;
+  loadAndStartQuiz: (quizId: string) => Promise<Quiz | null>;
   selectOption: (questionId: string, optionKey: string, isMultiSelect?: boolean) => void;
   submitCurrentAnswer: () => Promise<InstantFeedback | null>;
   nextQuestion: () => void;
@@ -53,6 +54,34 @@ export const useQuizStore = create<QuizState>((set, get) => ({
         isSubmitted: false,
         isLoading: false,
       });
+    } catch (e) {
+      set({ isLoading: false });
+      throw e;
+    }
+  },
+
+  loadAndStartQuiz: async (quizId: string) => {
+    set({ isLoading: true });
+    try {
+      const quiz = await api.getQuiz(quizId);
+      if (!quiz) {
+        set({ isLoading: false });
+        return null;
+      }
+      const session = await api.startSession(quiz.id);
+      set({
+        currentQuiz: quiz,
+        currentSession: session,
+        currentIndex: 0,
+        selectedAnswers: {},
+        questionFeedback: {},
+        bookmarks: {},
+        notes: {},
+        questionTimes: {},
+        isSubmitted: false,
+        isLoading: false,
+      });
+      return quiz;
     } catch (e) {
       set({ isLoading: false });
       throw e;

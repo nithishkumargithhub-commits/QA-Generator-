@@ -52,19 +52,21 @@ async def generate_quiz(
 
     job_id = str(uuid.uuid4())
     from app.workers.job_tracker import JobTracker
-    from app.workers.ai_tasks import generate_quiz_task
-    JobTracker.set_job_status(job_id, "queued", progress=0.0, result={"quiz_id": quiz.id})
+    JobTracker.set_job_status(job_id, "processing", progress=0.1, result={"quiz_id": quiz.id})
 
     req_dict = req.model_dump() if hasattr(req, "model_dump") else req.dict()
 
-    try:
-        generate_quiz_task.delay(job_id, quiz.id, req_dict, req.document_id, current_user.id)
-    except Exception as e:
-        # Inline fallback execution if Celery worker is unavailable
-        from app.workers.ai_tasks import _async_generate_quiz
-        await _async_generate_quiz(job_id, quiz.id, req_dict, req.document_id, current_user.id)
+    # Generate questions inline synchronously to guarantee instant availability
+    from app.workers.ai_tasks import _async_generate_quiz
+    await _async_generate_quiz(job_id, quiz.id, req_dict, req.document_id, current_user.id)
 
-    # Re-fetch quiz with questions populated if inline, or return initial quiz model for background processing
+    try:
+        from app.workers.ai_tasks import generate_quiz_task
+        generate_quiz_task.delay(job_id, quiz.id, req_dict, req.document_id, current_user.id)
+    except Exception:
+        pass
+
+    # Re-fetch quiz with populated questions & options
     stmt_full = select(Quiz).where(Quiz.id == quiz.id).options(selectinload(Quiz.questions).selectinload(Question.options))
     res_full = await db.execute(stmt_full)
     quiz_loaded = res_full.scalars().first() or quiz

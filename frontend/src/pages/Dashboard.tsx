@@ -59,7 +59,7 @@ export const DashboardPage: React.FC = () => {
               <Sparkles className="w-4 h-4" /> Upload Document
             </Link>
             <Link to="/quizzes" className="glass-panel px-5 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:text-white border border-slate-800">
-              Browse Quizzes
+              Browse All Quizzes ({quizzes.length})
             </Link>
           </div>
         </div>
@@ -118,10 +118,10 @@ export const DashboardPage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-indigo-400" /> Active Quizzes & Assessments
+              <Zap className="w-5 h-5 text-indigo-400" /> Active Created Quizzes ({quizzes.length})
             </h2>
             <Link to="/quizzes" className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1">
-              View All <ArrowRight className="w-3.5 h-3.5" />
+              View All Library <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
@@ -135,31 +135,62 @@ export const DashboardPage: React.FC = () => {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {quizzes.slice(0, 4).map((quiz) => (
-                <div key={quiz.id} className="glass-card p-5 rounded-2xl border border-slate-800 hover:border-indigo-500/40 transition-all flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 uppercase">
-                        {quiz.difficulty_level}
+            <div className="space-y-4">
+              {/* Featured / Most Recent Quiz Card */}
+              {quizzes[0] && (
+                <div className="glass-card p-6 rounded-2xl border border-indigo-500/40 bg-indigo-950/20 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500 text-white uppercase">
+                        Latest Quiz
                       </span>
-                      <span className="text-xs text-slate-400 font-mono">{quiz.time_limit_minutes} mins</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-900 text-slate-300 border border-slate-800">
+                        {quizzes[0].difficulty_level}
+                      </span>
                     </div>
-                    <h3 className="font-bold text-slate-100 line-clamp-1">{quiz.title}</h3>
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">{quiz.description}</p>
+                    <h3 className="text-lg font-extrabold text-slate-100">{quizzes[0].title}</h3>
+                    <p className="text-xs text-slate-400 max-w-xl">{quizzes[0].description}</p>
+                    <div className="flex items-center gap-4 text-xs text-slate-400 pt-1">
+                      <span><strong>{quizzes[0].question_count || (quizzes[0].questions?.length || 0)}</strong> Questions</span>
+                      <span><strong>{quizzes[0].time_limit_minutes}</strong> Minutes</span>
+                    </div>
                   </div>
-
-                  <div className="mt-5 flex items-center justify-between pt-3 border-t border-slate-800/80">
-                    <span className="text-xs text-slate-400 font-medium">{quiz.question_count} Questions</span>
-                    <button
-                      onClick={() => handleStartQuiz(quiz)}
-                      className="gradient-btn px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5"
-                    >
-                      <Play className="w-3.5 h-3.5" /> Start Quiz
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleStartQuiz(quizzes[0])}
+                    className="gradient-btn px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/25 shrink-0"
+                  >
+                    <Play className="w-4 h-4" /> Start Assessment
+                  </button>
                 </div>
-              ))}
+              )}
+
+              {/* Grid of Remaining Quizzes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {quizzes.slice(1, 7).map((quiz) => (
+                  <div key={quiz.id} className="glass-card p-5 rounded-2xl border border-slate-800 hover:border-indigo-500/40 transition-all flex flex-col justify-between space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 uppercase">
+                          {quiz.difficulty_level}
+                        </span>
+                        <span className="text-xs text-slate-400 font-mono">{quiz.time_limit_minutes} mins</span>
+                      </div>
+                      <h3 className="font-bold text-slate-100 line-clamp-1">{quiz.title}</h3>
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">{quiz.description}</p>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                      <span className="text-xs text-slate-400 font-medium">{quiz.question_count || (quiz.questions?.length || 0)} Questions</span>
+                      <button
+                        onClick={() => handleStartQuiz(quiz)}
+                        className="gradient-btn px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                      >
+                        <Play className="w-3.5 h-3.5" /> Start Quiz
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -171,32 +202,45 @@ export const DashboardPage: React.FC = () => {
               <Sparkles className="w-5 h-5 text-purple-400" /> AI Weak-Area Remediation
             </h3>
             <div className="space-y-3">
-              {analytics?.ai_recommendations.map((rec, i) => (
+              {analytics?.ai_recommendations?.map((rec, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span>{rec}</span>
                 </div>
-              ))}
+              )) || (
+                <p className="text-xs text-slate-400">Complete assessments to get personalized AI remediation recommendations.</p>
+              )}
             </div>
           </div>
 
           <div className="glass-card p-6 rounded-2xl border border-slate-800">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">My Uploads</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">My Uploaded Documents</h3>
               <Link to="/my-documents" className="text-xs text-indigo-400 hover:text-indigo-300">
                 View ({documents.length})
               </Link>
             </div>
-            <div className="space-y-2.5">
-              {documents.slice(0, 3).map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-850">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
-                    <span className="text-xs font-medium text-slate-200 truncate">{doc.filename}</span>
+            <div className="space-y-3">
+              {documents.slice(0, 4).map((doc) => (
+                <div key={doc.id} className="p-3 rounded-xl bg-slate-950 border border-slate-850 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <span className="text-xs font-semibold text-slate-200 truncate">{doc.filename}</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold uppercase shrink-0">
+                      {doc.status}
+                    </span>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold uppercase">
-                    {doc.status}
-                  </span>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-slate-400">{doc.chapter_count} chapters</span>
+                    <Link
+                      to={`/generate-quiz?docId=${doc.id}`}
+                      className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3 h-3" /> Create Quiz →
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
