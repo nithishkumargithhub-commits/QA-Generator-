@@ -27,9 +27,17 @@ class Settings(BaseSettings):
     ]
     
     # Database (Supports PostgreSQL via env or absolute SQLite path for consistent local execution)
-    DATABASE_URL: str = os.getenv("DATABASE_URL") or os.getenv("INTERNAL_DATABASE_URL") or f"sqlite+aiosqlite:///{os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'qa_generator.db')).replace('\\', '/')}"
+    DATABASE_URL: str = os.getenv("DATABASE_URL") or os.getenv("INTERNAL_DATABASE_URL") or "sqlite+aiosqlite:///./qa_generator.db"
     
-    # Redis Cache (Fallback to in-memory if Redis not available)
+    def get_database_url(self) -> str:
+        url = self.DATABASE_URL
+        if "postgresql" in url:
+            return url
+        # For SQLite, enforce single deterministic absolute path to avoid split DB files
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        db_file = os.path.join(backend_dir, "qa_generator.db").replace("\\", "/")
+        return f"sqlite+aiosqlite:///{db_file}"
+
     REDIS_URL: Optional[str] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
     # External AI APIs (Optional: Gemini, OpenAI, OpenRouter)

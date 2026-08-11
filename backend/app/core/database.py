@@ -7,7 +7,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Normalize DATABASE_URL for async SQLAlchemy if needed
-db_url = settings.DATABASE_URL
+db_url = settings.get_database_url()
 if db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 elif db_url.startswith("sqlite://") and not db_url.startswith("sqlite+aiosqlite://"):

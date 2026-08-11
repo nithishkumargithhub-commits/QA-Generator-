@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, Integer, case
 from app.models.models import User, UploadedFile, Quiz, Question, QuizSession, QuizAnswer, UserTopicStat, ActivityLog
 
 class AnalyticsService:
@@ -51,15 +51,13 @@ class AnalyticsService:
             select(
                 Question.difficulty,
                 func.count(QuizAnswer.id).label("total_attempted"),
-                func.sum(func.cast(QuizAnswer.is_correct, Integer)).label("total_correct")
+                func.sum(case((QuizAnswer.is_correct == True, 1), else_=0)).label("total_correct")
             )
             .join(Question, QuizAnswer.question_id == Question.id)
             .join(QuizSession, QuizAnswer.session_id == QuizSession.id)
             .where(QuizSession.user_id == user_id)
             .group_by(Question.difficulty)
         )
-        # Import Integer for casting boolean sum if needed
-        from sqlalchemy import Integer
         res_diff = await db.execute(stmt_diff)
         diff_rows = res_diff.all()
         diff_map = {row[0]: (row[1], row[2] or 0) for row in diff_rows}
