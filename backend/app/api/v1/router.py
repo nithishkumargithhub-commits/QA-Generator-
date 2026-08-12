@@ -15,6 +15,7 @@ from app.api.v1.certificates import router as certificates_router
 from app.api.v1.export import router as export_router
 from app.api.v1.study_plans import router as study_plans_router
 from app.api.v1.live import router as live_router
+from app.api.v1.gcr import router as gcr_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -33,3 +34,4 @@ api_router.include_router(certificates_router)
 api_router.include_router(export_router)
 api_router.include_router(study_plans_router)
 api_router.include_router(live_router)
+api_router.include_router(gcr_router)

@@ -279,6 +279,30 @@ class ApiClient {
   async createLiveRoom(quizId: string): Promise<{ room_code: string; status: string }> {
     return this.request(`/live/rooms/create/${quizId}`, { method: 'POST' });
   }
+
+  // Google Classroom Integration Methods
+  async saveGCRCredentials(apiKey: string): Promise<any> {
+    return this.request('/gcr/credentials', {
+      method: 'POST',
+      body: JSON.stringify({ api_key: apiKey }),
+    });
+  }
+
+  async disconnectGCR(): Promise<any> {
+    return this.request('/gcr/credentials', { method: 'DELETE' });
+  }
+
+  async getGCRAssignments(): Promise<{ is_connected: boolean; connected_at?: string; assignments: any[] }> {
+    return this.request('/gcr/assignments');
+  }
+
+  async syncGCR(): Promise<any> {
+    return this.request('/gcr/sync', { method: 'POST' });
+  }
+
+  async generateQuizFromGCRAssignment(assignmentId: string): Promise<any> {
+    return this.request(`/gcr/generate-quiz/${assignmentId}`, { method: 'POST' });
+  }
 }
 
 

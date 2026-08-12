@@ -21,6 +21,7 @@ import { FlashcardsPage } from './pages/FlashcardsPage';
 import { QuestionBankPage } from './pages/QuestionBankPage';
 import { ClassroomsPage } from './pages/ClassroomsPage';
 import { LiveMultiplayerPage } from './pages/LiveMultiplayerPage';
+import { GoogleClassroomPage } from './pages/GoogleClassroomPage';
 import { useAuthStore } from './store/useAuthStore';
 
 const queryClient = new QueryClient();
@@ -75,6 +76,7 @@ export const App: React.FC = () => {
               <Route path="/question-bank" element={<ProtectedRoute><QuestionBankPage /></ProtectedRoute>} />
               <Route path="/classrooms" element={<ProtectedRoute><ClassroomsPage /></ProtectedRoute>} />
               <Route path="/live" element={<ProtectedRoute><LiveMultiplayerPage /></ProtectedRoute>} />
+              <Route path="/gcr" element={<ProtectedRoute><GoogleClassroomPage /></ProtectedRoute>} />
 
               {/* Protected Admin LMS Routes */}
               <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />

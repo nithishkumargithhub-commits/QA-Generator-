@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, LogOut, User as UserIcon, Shield, LayoutDashboard, FileText, Sparkles, BarChart2 } from 'lucide-react';
+import { Brain, LogOut, User as UserIcon, Shield, LayoutDashboard, FileText, Sparkles, BarChart2, BookOpen } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export const Navbar: React.FC = () => {
@@ -42,6 +42,9 @@ export const Navbar: React.FC = () => {
               </Link>
               <Link to="/live" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
                 <Sparkles className="w-4 h-4 text-purple-400" /> Live Battle
+              </Link>
+              <Link to="/gcr" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
+                <BookOpen className="w-4 h-4 text-sky-400" /> Google Classroom
               </Link>
               {user?.role === 'Admin' && (
                 <Link to="/admin" className="px-3 py-2 rounded-lg text-sm font-medium text-indigo-300 bg-indigo-950/40 border border-indigo-800/40 hover:bg-indigo-900/40 flex items-center gap-2 transition-colors">

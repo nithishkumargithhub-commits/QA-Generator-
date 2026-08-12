@@ -23,13 +23,15 @@ class User(Base):
     is_suspended = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    last_login_at = Column(DateTime, nullable=True)
+    gcr_api_key = Column(String(500), nullable=True)
+    gcr_connected_at = Column(DateTime, nullable=True)
 
     # Relationships
     uploaded_files = relationship("UploadedFile", back_populates="user", cascade="all, delete-orphan")
     quizzes = relationship("Quiz", back_populates="creator", cascade="all, delete-orphan")
     quiz_sessions = relationship("QuizSession", back_populates="user", cascade="all, delete-orphan")
     topic_stats = relationship("UserTopicStat", back_populates="user", cascade="all, delete-orphan")
+    gcr_assignments = relationship("GoogleClassroomAssignment", back_populates="user", cascade="all, delete-orphan")
 
 class Role(Base):
     __tablename__ = "roles"
@@ -296,4 +298,25 @@ class LiveSession(Base):
     status = Column(String(20), default="waiting", nullable=False) # waiting, active, finished
     current_question_index = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class GoogleClassroomAssignment(Base):
+    __tablename__ = "gcr_assignments"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    gcr_course_id = Column(String(100), nullable=False, index=True)
+    gcr_coursework_id = Column(String(100), nullable=False, index=True)
+    course_name = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    max_points = Column(Float, default=100.0)
+    submission_state = Column(String(30), default="ASSIGNED", nullable=False) # ASSIGNED, TURNED_IN, RETURNED, GRADED, LATE, RECLAIMED
+    alternate_link = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="gcr_assignments")
+
 

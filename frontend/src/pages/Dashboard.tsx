@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, Play, Award, Zap, AlertTriangle, TrendingUp, CheckCircle2, ArrowRight, Layers, Users, Gamepad2, Shield } from 'lucide-react';
+import { Sparkles, FileText, Play, Award, Zap, AlertTriangle, TrendingUp, CheckCircle2, ArrowRight, Layers, Users, Gamepad2, Shield, BookOpen } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuizStore } from '../store/useQuizStore';
 import { api } from '../services/api';
@@ -163,6 +163,29 @@ export const DashboardPage: React.FC = () => {
             </div>
             <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-purple-400 group-hover:translate-x-1 transition-transform">
               <span>Join / Host Battle</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          {/* 5. Google Classroom Homework Tracker */}
+          <Link
+            to="/gcr"
+            className="glass-card p-5 rounded-2xl border border-sky-500/30 bg-sky-950/10 hover:border-sky-500/60 transition-all group flex flex-col justify-between"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  GCR API Integration
+                </span>
+              </div>
+              <h3 className="font-extrabold text-slate-100 group-hover:text-sky-300 transition-colors">Google Classroom Tracker</h3>
+              <p className="text-xs text-slate-400">Connect GCR API key, track homework deadlines, and generate 1-click AI prep exams.</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-sky-400 group-hover:translate-x-1 transition-transform">
+              <span>Open GCR Tracker</span>
               <ArrowRight className="w-4 h-4" />
             </div>
           </Link>

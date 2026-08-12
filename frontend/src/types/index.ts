@@ -134,3 +134,18 @@ export interface AdminDashboardSummary {
   daily_activity: Array<{ day: string; users: number; quizzes: number; attempts: number }>;
   monthly_growth: Array<{ month: string; users: number; quizzes: number }>;
 }
+
+export interface GoogleClassroomAssignment {
+  id: string;
+  gcr_course_id: string;
+  gcr_coursework_id: string;
+  course_name: string;
+  title: string;
+  description?: string;
+  due_date?: string;
+  max_points: number;
+  submission_state: string; // ASSIGNED, TURNED_IN, RETURNED, GRADED, LATE
+  alternate_link?: string;
+  created_at: string;
+}
+
