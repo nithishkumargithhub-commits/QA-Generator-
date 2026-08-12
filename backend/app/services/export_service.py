@@ -103,10 +103,10 @@ class ExportService:
 
         # Try to use ReportLab if available, or generate clean HTML-printable buffer
         try:
-            from reportlab.lib.pagesizes import letter
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import letter  # type: ignore
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable  # type: ignore
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore
+            from reportlab.lib import colors  # type: ignore
 
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)

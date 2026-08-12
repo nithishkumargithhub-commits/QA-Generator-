@@ -51,7 +51,7 @@ async def list_classrooms(
         j_res = await db.execute(select(Classroom).where(Classroom.id.in_(joined_ids)))
         joined_classes = j_res.scalars().all()
 
-    all_cls = list({c.id: c for c in (teacher_classes + joined_classes)}.values())
+    all_cls = list({c.id: c for c in (list(teacher_classes) + list(joined_classes))}.values())
     return all_cls
 
 @router.post("/join", response_model=ClassroomOut)

@@ -59,10 +59,10 @@ class CertificateService:
         quiz_title = quiz.title if quiz else "Assessment Examination"
 
         try:
-            from reportlab.lib.pagesizes import letter, landscape
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import letter, landscape  # type: ignore
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle  # type: ignore
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore
+            from reportlab.lib import colors  # type: ignore
 
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(

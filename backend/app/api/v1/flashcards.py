@@ -16,7 +16,7 @@ async def create_flashcard(
     current_user: User = Depends(get_current_user)
 ):
     card = await flashcard_service.create_flashcard(
-        db, user_id=current_user.id,
+        db, user_id=str(current_user.id),
         front_text=payload.front_text, back_text=payload.back_text,
         document_id=payload.document_id, category=payload.category or "General"
     )
@@ -29,7 +29,7 @@ async def generate_from_document(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        cards = await flashcard_service.generate_from_document(db, user_id=current_user.id, document_id=document_id)
+        cards = await flashcard_service.generate_from_document(db, user_id=str(current_user.id), document_id=document_id)
         return cards
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
@@ -39,7 +39,7 @@ async def get_due_flashcards(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    cards = await flashcard_service.get_due_cards(db, user_id=current_user.id)
+    cards = await flashcard_service.get_due_cards(db, user_id=str(current_user.id))
     return cards
 
 @router.post("/{card_id}/review", response_model=FlashcardOut)
@@ -50,7 +50,7 @@ async def review_flashcard(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        updated = await flashcard_service.review_card(db, card_id=card_id, user_id=current_user.id, rating=payload.rating)
+        updated = await flashcard_service.review_card(db, card_id=card_id, user_id=str(current_user.id), rating=payload.rating)
         return updated
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))

@@ -15,7 +15,7 @@ async def issue_certificate(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        cert = await certificate_service.get_or_create_certificate(db, user_id=current_user.id, session_id=session_id)
+        cert = await certificate_service.get_or_create_certificate(db, user_id=str(current_user.id), session_id=session_id)
         return cert
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))

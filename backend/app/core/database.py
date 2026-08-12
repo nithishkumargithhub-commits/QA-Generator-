@@ -1,5 +1,5 @@
 import logging
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Any
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
@@ -13,7 +13,7 @@ if db_url.startswith("postgresql://"):
 elif db_url.startswith("sqlite://") and not db_url.startswith("sqlite+aiosqlite://"):
     db_url = db_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
 
-engine_kwargs = {"echo": False}
+engine_kwargs: dict[str, Any] = {"echo": False}
 if "sqlite" in db_url:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:

@@ -324,6 +324,70 @@ class MCQExtractor:
 
 class AIGeneratorService:
     @staticmethod
+    def is_api_available() -> bool:
+        return bool(settings.OPENAI_API_KEY or settings.GEMINI_API_KEY or settings.OPENROUTER_API_KEY)
+
+    @staticmethod
+    async def _call_llm_api(prompt: str) -> str:
+        headers = {"Content-Type": "application/json"}
+        if settings.GEMINI_API_KEY:
+            gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
+            for model_name in gemini_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.7
+                    }
+                }
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    try:
+                        resp = await client.post(url, headers=headers, json=payload)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            return data["candidates"][0]["content"]["parts"][0]["text"]
+                        elif resp.status_code in (400, 401, 403):
+                            break
+                    except Exception as err:
+                        logger.warning(f"Gemini model {model_name} failed: {err}")
+
+        if settings.OPENAI_API_KEY:
+            url = "https://api.openai.com/v1/chat/completions"
+            headers["Authorization"] = f"Bearer {settings.OPENAI_API_KEY}"
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.7
+            }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"]
+
+        elif settings.OPENROUTER_API_KEY:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers["Authorization"] = f"Bearer {settings.OPENROUTER_API_KEY}"
+            payload = {
+                "model": "meta-llama/llama-3.1-8b-instruct:free",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.7
+            }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"]
+
+        raise RuntimeError("No working LLM API available")
+
+    @staticmethod
+    async def _generate_json(prompt: str) -> Any:
+        raw = await AIGeneratorService._call_llm_api(prompt)
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.MULTILINE)
+        return json.loads(cleaned)
+
+    @staticmethod
     async def generate_questions(
         text_content: str,
         topic_summary: Optional[List[Dict[str, Any]]] = None,

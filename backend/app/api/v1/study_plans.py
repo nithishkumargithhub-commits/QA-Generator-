@@ -15,7 +15,7 @@ async def generate_study_plan(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        plan = await study_plan_service.generate_study_plan(db, user_id=current_user.id, session_id=session_id)
+        plan = await study_plan_service.generate_study_plan(db, user_id=str(current_user.id), session_id=session_id)
         return plan
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))

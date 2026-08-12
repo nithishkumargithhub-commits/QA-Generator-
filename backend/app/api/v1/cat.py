@@ -15,7 +15,7 @@ async def get_next_adaptive_question(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        res = await adaptive_cat_service.get_next_adaptive_question(db, session_id=session_id, user_id=current_user.id)
+        res = await adaptive_cat_service.get_next_adaptive_question(db, session_id=session_id, user_id=str(current_user.id))
         if not res:
             return {"status": "completed", "message": "All questions completed for this adaptive session."}
         
