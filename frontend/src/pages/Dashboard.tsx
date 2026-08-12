@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, FileText, Play, Award, Zap, AlertTriangle, TrendingUp, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Sparkles, FileText, Play, Award, Zap, AlertTriangle, TrendingUp, CheckCircle2, ArrowRight, Layers, Users, Gamepad2, Shield } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuizStore } from '../store/useQuizStore';
 import { api } from '../services/api';
@@ -62,6 +62,135 @@ export const DashboardPage: React.FC = () => {
               Browse All Quizzes ({quizzes.length})
             </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Feature Suite Navigation Hub - All Modules at a Glance */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <Layers className="w-5 h-5 text-indigo-400" /> Platform Feature Suite & Tools
+          </h2>
+          <span className="text-xs text-slate-400 font-medium">Click any suite below to jump straight in</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 1. Flashcards */}
+          <Link
+            to="/flashcards"
+            className="glass-card p-5 rounded-2xl border border-amber-500/30 bg-amber-950/10 hover:border-amber-500/60 transition-all group flex flex-col justify-between"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  SuperMemo SM-2
+                </span>
+              </div>
+              <h3 className="font-extrabold text-slate-100 group-hover:text-amber-300 transition-colors">AI Flashcards & SRS</h3>
+              <p className="text-xs text-slate-400">Master key terms with 3D flipping decks & spaced repetition memory intervals.</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-amber-400 group-hover:translate-x-1 transition-transform">
+              <span>Open Flashcards</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          {/* 2. Question Bank */}
+          <Link
+            to="/question-bank"
+            className="glass-card p-5 rounded-2xl border border-sky-500/30 bg-sky-950/10 hover:border-sky-500/60 transition-all group flex flex-col justify-between"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  4 Exporters
+                </span>
+              </div>
+              <h3 className="font-extrabold text-slate-100 group-hover:text-sky-300 transition-colors">Question Bank & Export</h3>
+              <p className="text-xs text-slate-400">Export assessments to PDF Exams, Moodle XML, QTI 2.1, or Canvas/Google CSV.</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-sky-400 group-hover:translate-x-1 transition-transform">
+              <span>Open Repository</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          {/* 3. Classrooms */}
+          <Link
+            to="/classrooms"
+            className="glass-card p-5 rounded-2xl border border-emerald-500/30 bg-emerald-950/10 hover:border-emerald-500/60 transition-all group flex flex-col justify-between"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                  <Users className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  LMS Suite
+                </span>
+              </div>
+              <h3 className="font-extrabold text-slate-100 group-hover:text-emerald-300 transition-colors">Classrooms & Roster</h3>
+              <p className="text-xs text-slate-400">Manage student batches, assignments, unique join codes, and PDF certificates.</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-emerald-400 group-hover:translate-x-1 transition-transform">
+              <span>Manage Batches</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          {/* 4. Live Multiplayer */}
+          <Link
+            to="/live"
+            className="glass-card p-5 rounded-2xl border border-purple-500/30 bg-purple-950/10 hover:border-purple-500/60 transition-all group flex flex-col justify-between"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                  <Gamepad2 className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  Live WebSocket
+                </span>
+              </div>
+              <h3 className="font-extrabold text-slate-100 group-hover:text-purple-300 transition-colors">Live Battle Arena</h3>
+              <p className="text-xs text-slate-400">Host synchronous Kahoot-style quiz rooms with real-time room code battles.</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-purple-400 group-hover:translate-x-1 transition-transform">
+              <span>Join / Host Battle</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          {/* 5. Admin LMS (Visible if user is Admin) */}
+          {user?.role === 'Admin' && (
+            <Link
+              to="/admin/users"
+              className="glass-card p-5 rounded-2xl border border-indigo-500/40 bg-indigo-950/30 hover:border-indigo-500/70 transition-all group flex flex-col justify-between sm:col-span-2 lg:col-span-4"
+            >
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600/30 flex items-center justify-center text-indigo-300 shrink-0">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-100 text-base">Enterprise Admin LMS Control Panel</h3>
+                    <p className="text-xs text-slate-400">Manage all registered accounts, inspect user audit histories, toggle active status, and export analytics CSVs.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1.5 rounded-xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1.5">
+                    <Users className="w-4 h-4" /> Open User Management Roster →
+                  </span>
+                </div>
+              </div>
+            </Link>
+          )}
         </div>
       </div>
 
