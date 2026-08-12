@@ -120,8 +120,15 @@ export const AdminUsersPage: React.FC = () => {
             {users.map((u) => (
               <tr key={u.id} className="hover:bg-slate-900/40">
                 <td className="p-4 font-semibold text-slate-200">
-                  {u.username}
-                  <span className="block text-[11px] text-slate-500 font-normal">{u.full_name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 font-bold flex items-center justify-center text-xs uppercase">
+                      {u.username ? u.username[0] : 'U'}
+                    </span>
+                    <div>
+                      <span className="font-bold text-slate-100">{u.username}</span>
+                      <span className="block text-[11px] text-slate-400 font-medium">{u.full_name || 'Registered Account'}</span>
+                    </div>
+                  </div>
                 </td>
                 <td className="p-4 text-slate-400">{u.email}</td>
                 <td className="p-4">
