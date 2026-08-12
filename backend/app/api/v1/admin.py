@@ -24,7 +24,7 @@ async def admin_list_users(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin)
 ):
-    stmt = select(User)
+    stmt = select(User).order_by(User.created_at.desc())
     if search:
         stmt = stmt.where((User.username.ilike(f"%{search}%")) | (User.email.ilike(f"%{search}%")))
     res = await db.execute(stmt)

@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     
     def get_database_url(self) -> str:
         url = self.DATABASE_URL
-        if "postgresql" in url:
+        if "postgres" in url:
             return url
         # For SQLite, enforce single deterministic absolute path to avoid split DB files
         backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
