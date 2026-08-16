@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, LogOut, User as UserIcon, Shield, LayoutDashboard, FileText, Sparkles, BarChart2, BookOpen } from 'lucide-react';
+import { Brain, LogOut, User as UserIcon, Shield, LayoutDashboard, FileText, Sparkles, BarChart2, BookOpen, TrendingUp } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export const Navbar: React.FC = () => {
@@ -30,6 +30,9 @@ export const Navbar: React.FC = () => {
             <div className="hidden md:flex items-center gap-1">
               <Link to="/dashboard" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
                 <LayoutDashboard className="w-4 h-4 text-indigo-400" /> Dashboard
+              </Link>
+              <Link to="/analytics" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
+                <TrendingUp className="w-4 h-4 text-teal-400" /> Analytics
               </Link>
               <Link to="/flashcards" className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition-colors">
                 <Sparkles className="w-4 h-4 text-amber-400" /> Flashcards
