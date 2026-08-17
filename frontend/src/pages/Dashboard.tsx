@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Sparkles, FileText, Play, Award, Zap, AlertTriangle, TrendingUp, CheckCircle2,
   ArrowRight, Layers, Users, Gamepad2, Shield, BookOpen, UploadCloud, UserPlus,
-  FolderKanban, Trophy, ChevronRight
+  FolderKanban, Trophy, ChevronRight, UserCheck
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuizStore } from '../store/useQuizStore';
@@ -39,6 +39,46 @@ export const DashboardPage: React.FC = () => {
     }
     loadData();
   }, []);
+
+  const handleGoogleOAuthLogin = async () => {
+    const clientId = localStorage.getItem('gcr_client_id') || (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+    if (!clientId) {
+      navigate('/gcr');
+      return;
+    }
+
+    try {
+      await api.disconnectGCR();
+    } catch (_) {}
+
+    const redirectUri = window.location.origin + '/gcr';
+    const scopes = [
+      'https://www.googleapis.com/auth/classroom.courses.readonly',
+      'https://www.googleapis.com/auth/classroom.coursework.me.readonly',
+      'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
+      'email',
+      'profile'
+    ].join(' ');
+
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${encodeURIComponent(clientId)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=token` +
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&include_granted_scopes=true` +
+      `&prompt=select_account%20consent`;
+
+    window.location.href = oauthUrl;
+  };
+
+  const handleFastAccountConnect = async () => {
+    try {
+      await api.saveGCRCredentials("app_user_login_connect");
+      navigate('/gcr');
+    } catch (e) {
+      navigate('/gcr');
+    }
+  };
 
   const handleStartQuiz = async (quiz: Quiz) => {
     await startQuiz(quiz);
@@ -368,27 +408,52 @@ export const DashboardPage: React.FC = () => {
               </Link>
 
               {/* 5. Google Classroom Tracker */}
-              <Link
-                to="/gcr"
-                className="glass-card p-5 rounded-2xl border border-sky-500/30 bg-sky-950/10 hover:border-sky-500/60 transition-all group flex flex-col justify-between"
-              >
+              <div className="glass-card p-5 rounded-2xl border border-sky-500/30 bg-sky-950/10 hover:border-sky-500/60 transition-all flex flex-col justify-between space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
+                    <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center text-sky-400">
                       <BookOpen className="w-5 h-5" />
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30">
                       GCR API Integration
                     </span>
                   </div>
-                  <h3 className="font-extrabold text-slate-100 group-hover:text-sky-300 transition-colors">Google Classroom Tracker</h3>
-                  <p className="text-xs text-slate-400">Connect GCR API key, track homework deadlines, and generate 1-click AI prep exams.</p>
+                  <h3 className="font-extrabold text-slate-100">Google Classroom Tracker</h3>
+                  <p className="text-xs text-slate-400">Connect Google Classroom to track homework deadlines & generate 1-click AI exams.</p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-sky-400 group-hover:translate-x-1 transition-transform">
-                  <span>Open GCR Tracker</span>
-                  <ArrowRight className="w-4 h-4" />
+
+                <div className="space-y-2">
+                  <button
+                    onClick={handleGoogleOAuthLogin}
+                    className="w-full bg-white hover:bg-slate-100 text-slate-900 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-[1.02]"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    Sign In with Google
+                  </button>
+
+                  <button
+                    onClick={handleFastAccountConnect}
+                    className="w-full bg-sky-600 hover:bg-sky-500 text-white py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-transform hover:scale-[1.02]"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" /> Connect via App Account
+                  </button>
                 </div>
-              </Link>
+
+                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                  <Link
+                    to="/gcr"
+                    className="text-xs font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                  >
+                    <span>Open GCR Tracker</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
 
               {/* 6. Performance Analytics */}
               <Link
