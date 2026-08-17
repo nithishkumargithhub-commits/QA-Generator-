@@ -2,7 +2,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from app.core.database import get_db
 from app.api.deps import get_current_user
@@ -41,6 +41,10 @@ async def save_gcr_credentials(
         raise HTTPException(status_code=400, detail="Google Classroom API Key or OAuth token cannot be empty.")
 
     try:
+        # Clear previous assignments for this user before syncing new account data
+        await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == str(current_user.id)))
+        await db.commit()
+
         assignments = await gcr_service.sync_user_gcr_data(db, user_id=str(current_user.id), api_key=key)
         return {
             "status": "connected",
@@ -59,6 +63,7 @@ async def disconnect_gcr(
     setattr(current_user, "gcr_api_key", None)
     setattr(current_user, "gcr_user_email", None)
     setattr(current_user, "gcr_connected_at", None)
+    await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == str(current_user.id)))
     await db.commit()
     return {"status": "disconnected", "message": "Google Classroom integration disconnected."}
 
@@ -67,10 +72,16 @@ async def list_gcr_assignments(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Check if user has GCR key saved, if not auto-sync fallback mock data for smooth experience
     saved_key = getattr(current_user, "gcr_api_key", None)
-    key: str = str(saved_key) if saved_key else "demo_gcr_key_sandbox"
-    
+    if not saved_key:
+        return {
+            "is_connected": False,
+            "connected_at": None,
+            "connected_email": None,
+            "assignments": []
+        }
+
+    key: str = str(saved_key)
     res = await db.execute(
         select(GoogleClassroomAssignment)
         .where(GoogleClassroomAssignment.user_id == str(current_user.id))

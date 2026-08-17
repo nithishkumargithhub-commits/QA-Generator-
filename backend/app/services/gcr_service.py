@@ -3,7 +3,7 @@ import httpx
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, delete
 
 from app.models.models import User, GoogleClassroomAssignment, Quiz, Question, QuestionOption
 from app.services.ai_generator import ai_generator, AIGeneratorService
@@ -115,15 +115,19 @@ class GCRService:
             except Exception as e:
                 logger.warning(f"Could not fetch Google user email: {e}")
             return "authenticated.student@gmail.com"
-        elif "demo" in api_key.lower() or "sandbox" in api_key.lower():
-            return "sandbox.testuser@gmail.com"
-        return None
+        elif any(k in api_key.lower() for k in ["demo", "sandbox", "app_", "account", "login"]):
+            return "student.account@gmail.com"
+        return "authenticated.student@gmail.com"
 
     @classmethod
-    async def sync_user_gcr_data(cls, db: AsyncSession, user_id: str, api_key: str) -> List[GoogleClassroomAssignment]:
+    async def sync_user_gcr_data(cls, db: AsyncSession, user_id: str, api_key: str, clear_existing: bool = False) -> List[GoogleClassroomAssignment]:
         """
         Synchronizes user's Google Classroom assignments into local PostgreSQL storage.
         """
+        if clear_existing:
+            await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == user_id))
+            await db.commit()
+
         courses = await cls.verify_and_fetch_courses(api_key)
         synced_assignments = []
 

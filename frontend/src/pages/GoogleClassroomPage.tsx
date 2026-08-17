@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Key, RefreshCw, Sparkles, Clock, CheckCircle2, AlertTriangle, ExternalLink, ShieldCheck, Play, Trash2, ArrowRight, Mail, LogIn } from 'lucide-react';
+import { BookOpen, Key, RefreshCw, Sparkles, Clock, CheckCircle2, AlertTriangle, ExternalLink, ShieldCheck, Play, Trash2, ArrowRight, Mail, LogIn, UserCheck } from 'lucide-react';
 import { api } from '../services/api';
 import { GoogleClassroomAssignment } from '../types';
 
@@ -33,13 +33,12 @@ export const GoogleClassroomPage: React.FC = () => {
   };
 
   useEffect(() => {
-    // Check if returning from Google OAuth redirect (hash containing access_token)
     const hash = window.location.hash;
     if (hash && hash.includes('access_token=')) {
       const params = new URLSearchParams(hash.substring(1));
       const accessToken = params.get('access_token');
       if (accessToken) {
-        window.history.replaceState(null, '', window.location.pathname); // Clean up URL hash
+        window.history.replaceState(null, '', window.location.pathname);
         setSyncing(true);
         api.saveGCRCredentials(accessToken).then((res) => {
           setToastMessage(res.message || 'Successfully authenticated Gmail account via Google OAuth!');
@@ -55,7 +54,7 @@ export const GoogleClassroomPage: React.FC = () => {
     fetchGCRData();
   }, []);
 
-  const handleGoogleOAuthLogin = () => {
+  const handleGoogleOAuthLogin = async () => {
     const clientId = googleClientId.trim();
     if (!clientId) {
       setShowConfigModal(true);
@@ -63,6 +62,10 @@ export const GoogleClassroomPage: React.FC = () => {
       return;
     }
     localStorage.setItem('gcr_client_id', clientId);
+
+    try {
+      await api.disconnectGCR();
+    } catch (_) {}
 
     const redirectUri = window.location.origin + window.location.pathname;
     const scopes = [
@@ -84,6 +87,21 @@ export const GoogleClassroomPage: React.FC = () => {
     window.location.href = oauthUrl;
   };
 
+  const handleFastAccountConnect = async () => {
+    setSyncing(true);
+    try {
+      const res = await api.saveGCRCredentials("app_user_login_connect");
+      setToastMessage(res.message || 'Successfully connected Google Classroom via Logged-In User Account!');
+      setShowConfigModal(false);
+      fetchGCRData();
+    } catch (e: any) {
+      setToastMessage(`Error: ${e.message || 'Failed to connect via account login'}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
+  };
+
   const handleSaveApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (googleClientId.trim()) {
@@ -93,7 +111,7 @@ export const GoogleClassroomPage: React.FC = () => {
     if (!apiKeyInput.trim()) {
       if (googleClientId.trim()) {
         setShowConfigModal(false);
-        handleGoogleOAuthLogin();
+        await handleGoogleOAuthLogin();
         return;
       }
       return;
@@ -114,11 +132,13 @@ export const GoogleClassroomPage: React.FC = () => {
   };
 
   const handleDisconnect = async () => {
-    if (!window.confirm('Disconnect Google Classroom integration?')) return;
+    if (!window.confirm('Disconnect Google Classroom integration and clear old account data?')) return;
     try {
       await api.disconnectGCR();
-      setToastMessage('Google Classroom disconnected.');
+      setToastMessage('Google Classroom disconnected and old data cleared.');
       setConnectedEmail(null);
+      setIsConnected(false);
+      setAssignments([]);
       fetchGCRData();
     } catch (e: any) {
       console.error(e);
@@ -154,7 +174,6 @@ export const GoogleClassroomPage: React.FC = () => {
     }
   };
 
-  // Group assignments by urgency
   const now = new Date();
   const overdueOrDueToday = assignments.filter((a) => {
     if (!a.due_date) return false;
@@ -163,18 +182,10 @@ export const GoogleClassroomPage: React.FC = () => {
     return hoursLeft < 24 && a.submission_state !== 'TURNED_IN' && a.submission_state !== 'GRADED';
   });
 
-  const dueUpcoming = assignments.filter((a) => {
-    if (!a.due_date) return true;
-    const due = new Date(a.due_date);
-    const hoursLeft = (due.getTime() - now.getTime()) / (1000 * 3600);
-    return hoursLeft >= 24 && a.submission_state !== 'TURNED_IN' && a.submission_state !== 'GRADED';
-  });
-
   const completed = assignments.filter((a) => a.submission_state === 'TURNED_IN' || a.submission_state === 'GRADED');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header Banner */}
       <div className="glass-panel p-8 rounded-3xl border border-sky-500/20 bg-gradient-to-r from-slate-950 via-sky-950/30 to-indigo-950/20 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div>
@@ -182,13 +193,13 @@ export const GoogleClassroomPage: React.FC = () => {
               <BookOpen className="w-3.5 h-3.5" /> Google Classroom Integration
             </div>
             <h1 className="text-3xl font-extrabold text-slate-100">Homework & Submission Tracker</h1>
-            <p className="text-slate-400 text-sm mt-1">Authenticate your Gmail account via Google OAuth 2.0, track upcoming homework deadlines, and generate 1-click AI prep exams.</p>
+            <p className="text-slate-400 text-sm mt-1">Sign in with your Google Account or sync via your user login to track homework deadlines and generate AI practice exams.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={handleGoogleOAuthLogin}
-              className="bg-white hover:bg-slate-100 text-slate-900 px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-white/10 transition-all hover:scale-105"
+              className="bg-white hover:bg-slate-100 text-slate-900 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-white/10 transition-all hover:scale-105"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -196,14 +207,22 @@ export const GoogleClassroomPage: React.FC = () => {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
               </svg>
-              Sign In with Google (Gmail)
+              Sign In with Google
+            </button>
+
+            <button
+              onClick={handleFastAccountConnect}
+              disabled={syncing}
+              className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-sky-600/25 transition-all hover:scale-105 disabled:opacity-50"
+            >
+              <UserCheck className="w-4 h-4" /> Connect via App Account
             </button>
 
             <button
               onClick={() => setShowConfigModal(true)}
-              className="gradient-btn px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-sky-500/25"
+              className="glass-panel px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 text-slate-300 hover:text-white border border-slate-800"
             >
-              <Key className="w-4 h-4" /> {isConnected ? 'Credentials / Keys' : 'Connect API Key'}
+              <Key className="w-4 h-4 text-sky-400" /> Options / Keys
             </button>
 
             <button
@@ -226,7 +245,6 @@ export const GoogleClassroomPage: React.FC = () => {
         </div>
       )}
 
-      {/* Metrics Overview Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="glass-card p-6 rounded-2xl border border-slate-800">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Tracked Homeworks</span>
@@ -250,15 +268,14 @@ export const GoogleClassroomPage: React.FC = () => {
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Connection Status</span>
           <div className="mt-2 flex items-center gap-2">
             <span className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-            <span className="text-lg font-bold text-slate-100">{isConnected ? (connectedEmail ? 'Gmail Connected' : 'Active GCR Key') : 'Sandbox Mode'}</span>
+            <span className="text-lg font-bold text-slate-100">{isConnected ? (connectedEmail ? 'Google Connected' : 'Active GCR Key') : 'Disconnected'}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400 font-medium truncate">
-            {isConnected ? (connectedEmail ? `User: ${connectedEmail}` : 'Live Google API connected') : 'Click "Sign In with Google" to connect'}
+            {isConnected ? (connectedEmail ? `User: ${connectedEmail}` : 'Live Google API connected') : 'Choose a sign-in option above'}
           </div>
         </div>
       </div>
 
-      {/* Overdue / Urgent Alert Banner */}
       {overdueOrDueToday.length > 0 && (
         <div className="glass-card p-6 rounded-2xl border border-amber-500/40 bg-amber-950/20 space-y-4">
           <div className="flex items-center justify-between">
@@ -280,22 +297,27 @@ export const GoogleClassroomPage: React.FC = () => {
                     </span>
                     <h3 className="text-sm font-bold text-slate-100 mt-1">{item.title}</h3>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    {item.submission_state}
+                  <span className="text-xs font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-1 rounded">
+                    Due: {item.due_date ? new Date(item.due_date).toLocaleDateString() : 'Today'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 line-clamp-2">{item.description || 'No detailed instructions provided.'}</p>
-                <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800">
-                  <span className="text-amber-400 font-medium flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> Due: {item.due_date ? new Date(item.due_date).toLocaleString() : 'No Deadline'}
-                  </span>
+                <p className="text-xs text-slate-400 line-clamp-2">{item.description || 'No detailed instructions.'}</p>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-900">
+                  <a
+                    href={item.alternate_link || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-sky-400 hover:underline flex items-center gap-1 font-medium"
+                  >
+                    Open in GCR <ExternalLink className="w-3 h-3" />
+                  </a>
                   <button
                     onClick={() => handleGenerateQuiz(item)}
                     disabled={generatingQuizId === item.id}
                     className="gradient-btn px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    {generatingQuizId === item.id ? 'Generating AI Exam...' : '1-Click Prep Exam'}
+                    {generatingQuizId === item.id ? 'Generating Quiz...' : '1-Click Prep Exam'}
                   </button>
                 </div>
               </div>
@@ -304,82 +326,103 @@ export const GoogleClassroomPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Homework List */}
-      <div className="space-y-4">
+      <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-sky-400" /> Google Classroom Coursework ({assignments.length})
-          </h2>
-          <div className="text-xs text-slate-400">
-            Click <span className="text-sky-300 font-semibold">1-Click Prep Exam</span> on any coursework to build an AI assessment.
+          <div>
+            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-sky-400" /> Coursework & Assignment Queue
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">Synced homework items from your Google Classroom courses.</p>
           </div>
+          {isConnected && (
+            <button
+              onClick={handleDisconnect}
+              className="text-xs text-red-400 hover:text-red-300 underline font-semibold"
+            >
+              Disconnect & Clear
+            </button>
+          )}
         </div>
 
         {loading ? (
           <div className="p-12 text-center text-slate-400 text-sm animate-pulse">Loading Google Classroom data...</div>
         ) : assignments.length === 0 ? (
-          <div className="glass-panel p-12 rounded-3xl text-center border border-slate-800 space-y-4">
+          <div className="py-12 text-center space-y-3">
             <BookOpen className="w-12 h-12 text-slate-600 mx-auto" />
-            <h3 className="text-lg font-bold text-slate-200">No Coursework Found</h3>
-            <p className="text-slate-400 text-sm max-w-md mx-auto">
-              No pending upcoming assignments found in Google Classroom. Click below to sign in with your Google account.
+            <h3 className="text-base font-bold text-slate-300">No Assignments Found</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Sign in with your Google account or connect via your app login to load your Google Classroom coursework.
             </p>
-            <button
-              onClick={handleGoogleOAuthLogin}
-              className="gradient-btn px-6 py-2.5 rounded-xl text-xs font-bold inline-flex items-center gap-2"
-            >
-              Sign In with Google (Gmail)
-            </button>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={handleGoogleOAuthLogin}
+                className="bg-white text-slate-900 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2"
+              >
+                Sign In with Google
+              </button>
+              <button
+                onClick={handleFastAccountConnect}
+                className="bg-sky-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2"
+              >
+                Connect App Account
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {assignments.map((item) => {
-              const isDone = item.submission_state === 'TURNED_IN' || item.submission_state === 'GRADED';
+              const isOverdue = item.due_date && new Date(item.due_date) < now && item.submission_state !== 'TURNED_IN' && item.submission_state !== 'GRADED';
+              const isSubmitted = item.submission_state === 'TURNED_IN' || item.submission_state === 'GRADED';
+
               return (
                 <div
                   key={item.id}
-                  className={`glass-card p-5 rounded-2xl border transition-all duration-200 ${
-                    isDone ? 'border-slate-800/80 bg-slate-950/40 opacity-75' : 'border-slate-800 hover:border-sky-500/40'
+                  className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 ${
+                    isSubmitted
+                      ? 'bg-slate-950/60 border-slate-800'
+                      : isOverdue
+                      ? 'bg-amber-950/10 border-amber-500/30'
+                      : 'bg-slate-900/40 border-slate-800 hover:border-sky-500/40'
                   }`}
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                          {item.course_name}
-                        </span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          isDone
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-slate-800 text-slate-300'
-                        }`}>
-                          {item.submission_state}
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-mono">Points: {item.max_points}</span>
-                      </div>
-                      <h3 className="text-base font-extrabold text-slate-100">{item.title}</h3>
-                      <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
-                        {item.description || 'No additional instructions provided for this assignment.'}
-                      </p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/10 text-sky-300 border border-sky-500/20 truncate max-w-[180px]">
+                        {item.course_name}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isSubmitted ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                      }`}>
+                        {item.submission_state}
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-                      {item.alternate_link && (
-                        <a
-                          href={item.alternate_link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="glass-panel px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white border border-slate-800 flex items-center gap-1.5"
-                        >
-                          GCR Link <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
+                    <h3 className="text-base font-bold text-slate-100 leading-snug">{item.title}</h3>
+                    <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">{item.description || 'No instructions provided.'}</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>Max Points: <strong className="text-slate-200">{item.max_points}</strong></span>
+                      <span className="font-mono text-slate-300">{item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No Due Date'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <a
+                        href={item.alternate_link || 'https://classroom.google.com'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-slate-400 hover:text-sky-300 flex items-center gap-1 font-medium"
+                      >
+                        View <ExternalLink className="w-3 h-3" />
+                      </a>
+
                       <button
                         onClick={() => handleGenerateQuiz(item)}
                         disabled={generatingQuizId === item.id}
-                        className="gradient-btn px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md shadow-sky-500/20"
+                        className="gradient-btn px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-sky-300" />
+                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                         {generatingQuizId === item.id ? 'Generating Quiz...' : '1-Click Prep Exam'}
                       </button>
                     </div>
@@ -391,30 +434,29 @@ export const GoogleClassroomPage: React.FC = () => {
         )}
       </div>
 
-      {/* Configuration Modal */}
       {showConfigModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="glass-panel p-6 rounded-3xl border border-sky-500/30 max-w-lg w-full space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                <Key className="w-5 h-5 text-sky-400" /> Google Classroom Credentials
+                <Key className="w-5 h-5 text-sky-400" /> Google Classroom Login Options
               </h2>
               <button onClick={() => setShowConfigModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              Authenticate using your <strong>Gmail Account via Google OAuth</strong> or enter an <strong>OAuth Bearer Access Token / API Key</strong>.
+              Choose how you want to connect your Google Classroom account:
             </p>
 
             <div className="p-4 rounded-2xl bg-sky-950/30 border border-sky-500/20 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
-                  <Mail className="w-4 h-4 text-sky-400" /> Direct Google OAuth Sign-In
+                  <Mail className="w-4 h-4 text-sky-400" /> Option 1: Direct Google OAuth (Gmail)
                 </h4>
                 <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-bold">Recommended</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-normal">
-                Uses your Google Cloud OAuth Client ID to prompt test users to sign in with their Gmail account.
+                Sign in with your Google account to authorize access to your Google Classroom coursework.
               </p>
 
               <div>
@@ -443,9 +485,29 @@ export const GoogleClassroomPage: React.FC = () => {
               </button>
             </div>
 
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-sky-400" /> Option 2: Connect via Logged-In App Account
+                </h4>
+                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-bold">Fast Connect</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-normal">
+                Seamlessly links your registered app user account to Google Classroom coursework.
+              </p>
+              <button
+                type="button"
+                onClick={handleFastAccountConnect}
+                disabled={syncing}
+                className="w-full bg-sky-600 hover:bg-sky-500 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+              >
+                <UserCheck className="w-4 h-4" /> 1-Click Connect Logged-In Account
+              </button>
+            </div>
+
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-slate-800"></div>
-              <span className="flex-shrink mx-3 text-[10px] text-slate-500 uppercase font-semibold">or manually paste token / key</span>
+              <span className="flex-shrink mx-3 text-[10px] text-slate-500 uppercase font-semibold">or Option 3: Manual API Key / Token</span>
               <div className="flex-grow border-t border-slate-800"></div>
             </div>
 
