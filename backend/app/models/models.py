@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Any
 from sqlalchemy import (
     Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey, JSON, Index
 )
@@ -23,8 +23,9 @@ class User(Base):
     is_suspended = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    gcr_api_key = Column(String(500), nullable=True)
-    gcr_connected_at = Column(DateTime, nullable=True)
+    gcr_api_key: Any = Column(String(500), nullable=True)
+    gcr_user_email: Any = Column(String(200), nullable=True)
+    gcr_connected_at: Any = Column(DateTime, nullable=True)
 
     # Relationships
     uploaded_files = relationship("UploadedFile", back_populates="user", cascade="all, delete-orphan")

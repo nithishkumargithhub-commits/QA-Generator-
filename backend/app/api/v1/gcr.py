@@ -45,7 +45,8 @@ async def save_gcr_credentials(
         return {
             "status": "connected",
             "message": f"Successfully connected to Google Classroom! {len(assignments)} coursework assignments synced.",
-            "synced_count": len(assignments)
+            "synced_count": len(assignments),
+            "connected_email": current_user.gcr_user_email
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to connect to Google Classroom: {str(e)}")
@@ -55,8 +56,9 @@ async def disconnect_gcr(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    current_user.gcr_api_key = None
-    current_user.gcr_connected_at = None
+    setattr(current_user, "gcr_api_key", None)
+    setattr(current_user, "gcr_user_email", None)
+    setattr(current_user, "gcr_connected_at", None)
     await db.commit()
     return {"status": "disconnected", "message": "Google Classroom integration disconnected."}
 
@@ -66,7 +68,8 @@ async def list_gcr_assignments(
     current_user: User = Depends(get_current_user)
 ):
     # Check if user has GCR key saved, if not auto-sync fallback mock data for smooth experience
-    key = current_user.gcr_api_key or "demo_gcr_key_sandbox"
+    saved_key = getattr(current_user, "gcr_api_key", None)
+    key: str = str(saved_key) if saved_key else "demo_gcr_key_sandbox"
     
     res = await db.execute(
         select(GoogleClassroomAssignment)
@@ -95,8 +98,9 @@ async def list_gcr_assignments(
         })
 
     return {
-        "is_connected": bool(current_user.gcr_api_key),
-        "connected_at": current_user.gcr_connected_at.isoformat() if current_user.gcr_connected_at else None,
+        "is_connected": bool(getattr(current_user, "gcr_api_key", None)),
+        "connected_at": current_user.gcr_connected_at.isoformat() if getattr(current_user, "gcr_connected_at", None) else None,
+        "connected_email": getattr(current_user, "gcr_user_email", None),
         "assignments": output
     }
 
@@ -105,7 +109,8 @@ async def trigger_gcr_sync(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    key = current_user.gcr_api_key or "demo_gcr_key_sandbox"
+    saved_key = getattr(current_user, "gcr_api_key", None)
+    key: str = str(saved_key) if saved_key else "demo_gcr_key_sandbox"
     assignments = await gcr_service.sync_user_gcr_data(db, user_id=str(current_user.id), api_key=key)
     return {
         "status": "success",

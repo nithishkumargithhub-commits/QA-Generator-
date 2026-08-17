@@ -292,7 +292,7 @@ class ApiClient {
     return this.request('/gcr/credentials', { method: 'DELETE' });
   }
 
-  async getGCRAssignments(): Promise<{ is_connected: boolean; connected_at?: string; assignments: any[] }> {
+  async getGCRAssignments(): Promise<{ is_connected: boolean; connected_at?: string; connected_email?: string; assignments: any[] }> {
     return this.request('/gcr/assignments');
   }
 

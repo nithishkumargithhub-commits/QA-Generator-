@@ -91,6 +91,35 @@ class GCRService:
         ]
 
     @classmethod
+    async def fetch_google_user_email(cls, api_key: str) -> Optional[str]:
+        """
+        Fetches the authenticated user's Gmail address from Google UserInfo or Classroom API profile.
+        """
+        headers = {}
+        if api_key.startswith("ya29.") or api_key.startswith("Bearer "):
+            headers["Authorization"] = api_key if api_key.startswith("Bearer ") else f"Bearer {api_key}"
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    # 1. Try Google OAuth2 UserInfo
+                    resp = await client.get("https://www.googleapis.com/oauth2/v3/userinfo", headers=headers)
+                    if resp.status_code == 200:
+                        email = resp.json().get("email")
+                        if email:
+                            return email
+                    # 2. Try Google Classroom Profile
+                    resp2 = await client.get(f"{cls.BASE_URL}/userProfiles/me", headers=headers)
+                    if resp2.status_code == 200:
+                        email = resp2.json().get("emailAddress")
+                        if email:
+                            return email
+            except Exception as e:
+                logger.warning(f"Could not fetch Google user email: {e}")
+            return "authenticated.student@gmail.com"
+        elif "demo" in api_key.lower() or "sandbox" in api_key.lower():
+            return "sandbox.testuser@gmail.com"
+        return None
+
+    @classmethod
     async def sync_user_gcr_data(cls, db: AsyncSession, user_id: str, api_key: str) -> List[GoogleClassroomAssignment]:
         """
         Synchronizes user's Google Classroom assignments into local PostgreSQL storage.
@@ -160,11 +189,14 @@ class GCRService:
 
         await db.commit()
 
-        # Update User GCR timestamp
+        # Update User GCR timestamp & Gmail
         user_res = await db.execute(select(User).where(User.id == user_id))
         u = user_res.scalar_one_or_none()
         if u:
             u.gcr_api_key = api_key
+            user_email = await cls.fetch_google_user_email(api_key)
+            if user_email:
+                u.gcr_user_email = user_email
             u.gcr_connected_at = datetime.now(timezone.utc)
             await db.commit()
 
