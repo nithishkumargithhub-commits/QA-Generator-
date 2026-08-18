@@ -41,16 +41,38 @@ async def save_gcr_credentials(
         raise HTTPException(status_code=400, detail="Google Classroom API Key or OAuth token cannot be empty.")
 
     try:
-        # Clear previous assignments for this user before syncing new account data
+        # Always fully wipe old GCR data first (assignments + user fields)
+        # This prevents stale data from a previous account showing up
         await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == str(current_user.id)))
         await db.commit()
 
-        assignments = await gcr_service.sync_user_gcr_data(db, user_id=str(current_user.id), api_key=key)
+        # Reset user GCR fields before re-syncing
+        current_user.gcr_api_key = None
+        current_user.gcr_user_email = None
+        current_user.gcr_connected_at = None
+        await db.commit()
+
+        # Sync real data from Google Classroom API
+        assignments = await gcr_service.sync_user_gcr_data(
+            db, user_id=str(current_user.id), api_key=key, clear_existing=False  # already cleared above
+        )
+
+        # Re-fetch the updated user to get the saved email
+        await db.refresh(current_user)
+        connected_email = getattr(current_user, "gcr_user_email", None)
+
+        if assignments:
+            msg = f"Successfully connected! Synced {len(assignments)} assignments from Google Classroom."
+        elif connected_email:
+            msg = f"Connected as {connected_email}. Use 'Sign In with Google' (OAuth) to load your real courses and assignments."
+        else:
+            msg = "Connected. Use the 'Sign In with Google' button to authorize and load your real Google Classroom data."
+
         return {
             "status": "connected",
-            "message": f"Successfully connected to Google Classroom! {len(assignments)} coursework assignments synced.",
+            "message": msg,
             "synced_count": len(assignments),
-            "connected_email": current_user.gcr_user_email
+            "connected_email": connected_email
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to connect to Google Classroom: {str(e)}")
@@ -60,12 +82,13 @@ async def disconnect_gcr(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    setattr(current_user, "gcr_api_key", None)
-    setattr(current_user, "gcr_user_email", None)
-    setattr(current_user, "gcr_connected_at", None)
+    # Clear all GCR data for this user
+    current_user.gcr_api_key = None
+    current_user.gcr_user_email = None
+    current_user.gcr_connected_at = None
     await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == str(current_user.id)))
     await db.commit()
-    return {"status": "disconnected", "message": "Google Classroom integration disconnected."}
+    return {"status": "disconnected", "message": "Google Classroom integration disconnected and all data cleared."}
 
 @router.get("/assignments")
 async def list_gcr_assignments(
@@ -81,16 +104,13 @@ async def list_gcr_assignments(
             "assignments": []
         }
 
-    key: str = str(saved_key)
+    # Fetch assignments from DB only — no auto-re-sync to avoid re-fetching mock data
     res = await db.execute(
         select(GoogleClassroomAssignment)
         .where(GoogleClassroomAssignment.user_id == str(current_user.id))
         .order_by(GoogleClassroomAssignment.due_date.asc())
     )
     items = res.scalars().all()
-
-    if not items:
-        items = await gcr_service.sync_user_gcr_data(db, user_id=str(current_user.id), api_key=key)
 
     output = []
     for item in items:
@@ -109,7 +129,7 @@ async def list_gcr_assignments(
         })
 
     return {
-        "is_connected": bool(getattr(current_user, "gcr_api_key", None)),
+        "is_connected": True,
         "connected_at": current_user.gcr_connected_at.isoformat() if getattr(current_user, "gcr_connected_at", None) else None,
         "connected_email": getattr(current_user, "gcr_user_email", None),
         "assignments": output
@@ -121,12 +141,24 @@ async def trigger_gcr_sync(
     current_user: User = Depends(get_current_user)
 ):
     saved_key = getattr(current_user, "gcr_api_key", None)
-    key: str = str(saved_key) if saved_key else "demo_gcr_key_sandbox"
+    if not saved_key:
+        raise HTTPException(
+            status_code=400,
+            detail="No Google Classroom account connected. Please sign in with Google OAuth first."
+        )
+
+    key: str = str(saved_key)
+    if not gcr_service.is_real_oauth_token(key):
+        raise HTTPException(
+            status_code=400,
+            detail="Your current login method cannot sync real courses. Please use 'Sign In with Google' (OAuth) to load your actual Google Classroom data."
+        )
+
     assignments = await gcr_service.sync_user_gcr_data(db, user_id=str(current_user.id), api_key=key)
     return {
         "status": "success",
         "synced_count": len(assignments),
-        "message": "Google Classroom homework assignments successfully synced."
+        "message": f"Successfully synced {len(assignments)} assignments from your Google Classroom account."
     }
 
 @router.post("/generate-quiz/{assignment_id}")
