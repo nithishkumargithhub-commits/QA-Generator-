@@ -1,7 +1,11 @@
 {
   "framework": "vite",
-  "buildCommand": "tsc && vite build",
+  "buildCommand": "npm install && npm run build",
+  "installCommand": "npm install",
   "outputDirectory": "dist",
+  "env": {
+    "NPM_FLAGS": "--include=dev"
+  },
   "rewrites": [
     {
       "source": "/(.*)",
