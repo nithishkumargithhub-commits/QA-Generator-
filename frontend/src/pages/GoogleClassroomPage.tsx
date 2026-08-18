@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Key, RefreshCw, Sparkles, Clock, CheckCircle2, AlertTriangle, ExternalLink, ShieldCheck, Play, Trash2, ArrowRight, Mail, LogIn, UserCheck } from 'lucide-react';
+import { BookOpen, Key, RefreshCw, Sparkles, Clock, CheckCircle2, AlertTriangle, ExternalLink, ShieldCheck, Play, Trash2, ArrowRight, Mail, LogIn, UserCheck, Lock, Eye, EyeOff } from 'lucide-react';
 import { api } from '../services/api';
 import { GoogleClassroomAssignment } from '../types';
 
@@ -17,6 +17,10 @@ export const GoogleClassroomPage: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [generatingQuizId, setGeneratingQuizId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [gmailInput, setGmailInput] = useState('');
+  const [gmailPasswordInput, setGmailPasswordInput] = useState('');
+  const [showGmailPassword, setShowGmailPassword] = useState(false);
+  const [showGmailLoginSection, setShowGmailLoginSection] = useState(false);
 
   const fetchGCRData = async () => {
     try {
@@ -99,6 +103,37 @@ export const GoogleClassroomPage: React.FC = () => {
     } finally {
       setSyncing(false);
       setTimeout(() => setToastMessage(null), 4000);
+    }
+  };
+
+  const handleGmailPasswordConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gmailInput.trim()) {
+      setToastMessage('Please enter your Gmail address.');
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+    if (!gmailPasswordInput.trim()) {
+      setToastMessage('Please enter your Gmail password or App Password.');
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+    setSyncing(true);
+    try {
+      // Send gmail:password as the credential token so backend can identify the account
+      const credentialToken = `gmail_login:${gmailInput.trim()}:${btoa(gmailPasswordInput)}`;
+      const res = await api.saveGCRCredentials(credentialToken);
+      setToastMessage(res.message || `Successfully connected Google Classroom for ${gmailInput}!`);
+      setShowConfigModal(false);
+      setShowGmailLoginSection(false);
+      setGmailInput('');
+      setGmailPasswordInput('');
+      fetchGCRData();
+    } catch (e: any) {
+      setToastMessage(`Gmail login failed: ${e.message || 'Could not connect with provided credentials.'}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setToastMessage(null), 5000);
     }
   };
 
@@ -211,6 +246,13 @@ export const GoogleClassroomPage: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setShowGmailLoginSection(!showGmailLoginSection)}
+              className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-red-600/25 transition-all hover:scale-105"
+            >
+              <Mail className="w-4 h-4" /> Gmail + Password
+            </button>
+
+            <button
               onClick={handleFastAccountConnect}
               disabled={syncing}
               className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-sky-600/25 transition-all hover:scale-105 disabled:opacity-50"
@@ -242,6 +284,87 @@ export const GoogleClassroomPage: React.FC = () => {
             <ShieldCheck className="w-4 h-4 text-sky-400" />
             <span>{toastMessage}</span>
           </div>
+        </div>
+      )}
+
+      {/* Inline Gmail + Password Login Panel */}
+      {showGmailLoginSection && (
+        <div className="glass-panel p-6 rounded-3xl border border-red-500/30 bg-gradient-to-br from-red-950/30 to-orange-950/20 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+              <Mail className="w-5 h-5 text-red-400" />
+              Login with Gmail &amp; Password
+            </h3>
+            <button
+              onClick={() => setShowGmailLoginSection(false)}
+              className="text-slate-500 hover:text-white text-lg leading-none"
+            >✕</button>
+          </div>
+          <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+            Enter your Gmail address and your Google account password (or an&nbsp;
+            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="text-red-400 underline hover:text-red-300">App Password</a>
+            ) to connect your Google Classroom account directly.
+          </p>
+          <form onSubmit={handleGmailPasswordConnect} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Gmail Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="email"
+                  value={gmailInput}
+                  onChange={(e) => setGmailInput(e.target.value)}
+                  placeholder="yourname@gmail.com"
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-red-500 transition-colors"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Password / App Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type={showGmailPassword ? 'text' : 'password'}
+                  value={gmailPasswordInput}
+                  onChange={(e) => setGmailPasswordInput(e.target.value)}
+                  placeholder="Enter Google App Password (recommended) or account password"
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-10 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-red-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGmailPassword(!showGmailPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  {showGmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Use a Google <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="text-red-400 underline">App Password</a> if you have 2FA enabled. Your credentials are sent securely.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="submit"
+                disabled={syncing}
+                className="flex-1 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
+              >
+                {syncing ? (
+                  <><RefreshCw className="w-4 h-4 animate-spin" /> Connecting...</>
+                ) : (
+                  <><LogIn className="w-4 h-4" /> Connect Gmail Account</>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowGmailLoginSection(false); setGmailInput(''); setGmailPasswordInput(''); }}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-sm font-semibold hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -485,10 +608,54 @@ export const GoogleClassroomPage: React.FC = () => {
               </button>
             </div>
 
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-red-950/30 to-orange-950/20 border border-red-500/25 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-red-300 flex items-center gap-1.5">
+                  <Mail className="w-4 h-4 text-red-400" /> Option 2: Gmail + Password Login
+                </h4>
+                <span className="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full font-bold">Direct Login</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-normal">
+                Enter your Gmail address and password (or App Password) to directly link your Google Classroom.
+              </p>
+              <form onSubmit={handleGmailPasswordConnect} className="space-y-2">
+                <div className="relative">
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                  <input
+                    type="email"
+                    value={gmailInput}
+                    onChange={(e) => setGmailInput(e.target.value)}
+                    placeholder="yourname@gmail.com"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-red-500"
+                  />
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                  <input
+                    type={showGmailPassword ? 'text' : 'password'}
+                    value={gmailPasswordInput}
+                    onChange={(e) => setGmailPasswordInput(e.target.value)}
+                    placeholder="App Password or Gmail password"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-8 py-2 text-xs text-slate-200 focus:outline-none focus:border-red-500"
+                  />
+                  <button type="button" onClick={() => setShowGmailPassword(!showGmailPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                    {showGmailPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <button
+                  type="submit"
+                  disabled={syncing}
+                  className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {syncing ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Connecting...</> : <><LogIn className="w-3.5 h-3.5" /> Login &amp; Connect Gmail</>}
+                </button>
+              </form>
+            </div>
+
             <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <UserCheck className="w-4 h-4 text-sky-400" /> Option 2: Connect via Logged-In App Account
+                  <UserCheck className="w-4 h-4 text-sky-400" /> Option 3: Connect via Logged-In App Account
                 </h4>
                 <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-bold">Fast Connect</span>
               </div>
@@ -507,7 +674,7 @@ export const GoogleClassroomPage: React.FC = () => {
 
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-slate-800"></div>
-              <span className="flex-shrink mx-3 text-[10px] text-slate-500 uppercase font-semibold">or Option 3: Manual API Key / Token</span>
+              <span className="flex-shrink mx-3 text-[10px] text-slate-500 uppercase font-semibold">or Option 4: Manual API Key / Token</span>
               <div className="flex-grow border-t border-slate-800"></div>
             </div>
 

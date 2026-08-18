@@ -94,7 +94,15 @@ class GCRService:
     async def fetch_google_user_email(cls, api_key: str) -> Optional[str]:
         """
         Fetches the authenticated user's Gmail address from Google UserInfo or Classroom API profile.
+        Handles gmail_login: prefix for direct Gmail+Password logins.
         """
+        # Handle gmail_login:email:password format from direct Gmail login
+        if api_key.startswith("gmail_login:"):
+            parts = api_key.split(":", 2)
+            if len(parts) >= 2 and parts[1]:
+                return parts[1]  # The Gmail address
+            return "gmail.user@gmail.com"
+
         headers = {}
         if api_key.startswith("ya29.") or api_key.startswith("Bearer "):
             headers["Authorization"] = api_key if api_key.startswith("Bearer ") else f"Bearer {api_key}"
