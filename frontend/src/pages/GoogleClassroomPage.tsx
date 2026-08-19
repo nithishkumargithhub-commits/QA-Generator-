@@ -71,7 +71,8 @@ export const GoogleClassroomPage: React.FC = () => {
       await api.disconnectGCR();
     } catch (_) {}
 
-    const redirectUri = window.location.origin + window.location.pathname;
+    const appOrigin = (import.meta as any).env?.VITE_APP_URL || window.location.origin;
+    const redirectUri = appOrigin + '/gcr';
     const scopes = [
       'https://www.googleapis.com/auth/classroom.courses.readonly',
       'https://www.googleapis.com/auth/classroom.coursework.me.readonly',
