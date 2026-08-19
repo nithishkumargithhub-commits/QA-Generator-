@@ -8,127 +8,105 @@ from sqlalchemy import select, and_, delete
 from app.models.models import User, GoogleClassroomAssignment, Quiz, Question, QuestionOption
 from app.services.ai_generator import ai_generator, AIGeneratorService
 
+from app.core.config import settings
+
 logger = logging.getLogger("gcr_service")
 
 class GCRService:
     BASE_URL = "https://classroom.googleapis.com/v1"
+    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
     @classmethod
     def is_real_oauth_token(cls, api_key: str) -> bool:
         """Returns True only if the key is a real Google OAuth access token."""
-        return api_key.startswith("ya29.") or api_key.startswith("Bearer ")
+        return bool(api_key) and (api_key.startswith("ya29.") or api_key.startswith("Bearer "))
 
     @classmethod
-    async def verify_and_fetch_courses(cls, api_key: str) -> List[Dict[str, Any]]:
+    async def exchange_code_for_tokens(cls, code: str, redirect_uri: str) -> Dict[str, Any]:
         """
-        Validates the user's OAuth Bearer token against Google Classroom REST API.
-        Returns empty list if the token is not a real OAuth token or the API call fails.
-        No mock/fallback data is ever returned — only real courses from the user's account.
+        Exchanges Google OAuth authorization code for access_token and refresh_token.
         """
-        # Non-OAuth tokens (gmail_login, app_user, etc.) cannot call the Google API
-        if not cls.is_real_oauth_token(api_key):
-            logger.info(f"Non-OAuth credential provided — skipping Google API call.")
-            return []
+        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+            raise ValueError("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not configured in backend environment.")
 
-        headers = {"Authorization": f"Bearer {api_key}" if not api_key.startswith("Bearer ") else api_key}
-        url = f"{cls.BASE_URL}/courses?courseStates=ACTIVE"
+        payload = {
+            "code": code,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(cls.TOKEN_URL, data=payload)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                logger.error(f"OAuth token exchange failed ({resp.status_code}): {resp.text}")
+                raise ValueError(f"Google OAuth token exchange failed: {resp.text}")
+
+    @classmethod
+    async def refresh_access_token(cls, refresh_token: str) -> Optional[str]:
+        """
+        Refreshes access token using Google refresh_token.
+        """
+        if not refresh_token or not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+            return None
+
+        payload = {
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token"
+        }
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(url, headers=headers)
+                resp = await client.post(cls.TOKEN_URL, data=payload)
                 if resp.status_code == 200:
                     data = resp.json()
-                    courses = data.get("courses", [])
-                    logger.info(f"Fetched {len(courses)} real courses from Google Classroom API.")
-                    return courses
+                    return data.get("access_token")
                 else:
-                    logger.warning(f"GCR API returned status {resp.status_code}: {resp.text[:200]}")
-                    return []
+                    logger.warning(f"Failed to refresh token: {resp.status_code} - {resp.text}")
+                    return None
         except Exception as e:
-            logger.error(f"Failed to connect to Google Classroom API: {e}")
-            return []
+            logger.error(f"Error refreshing Google access token: {e}")
+            return None
 
     @classmethod
-    async def fetch_coursework(cls, api_key: str, course_id: str) -> List[Dict[str, Any]]:
+    async def fetch_google_user_profile(cls, api_key: str) -> Dict[str, Optional[str]]:
         """
-        Fetches real coursework (homework assignments) for a given course ID.
-        Returns empty list on failure — no mock data.
-        """
-        if not cls.is_real_oauth_token(api_key):
-            return []
-
-        headers = {"Authorization": f"Bearer {api_key}" if not api_key.startswith("Bearer ") else api_key}
-        url = f"{cls.BASE_URL}/courses/{course_id}/courseWork?orderBy=updateTime+desc"
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(url, headers=headers)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    return data.get("courseWork", [])
-                else:
-                    logger.warning(f"Coursework API returned {resp.status_code} for course {course_id}: {resp.text[:200]}")
-                    return []
-        except Exception as e:
-            logger.error(f"Error fetching coursework for course {course_id}: {e}")
-            return []
-
-    @classmethod
-    async def fetch_student_submissions(cls, api_key: str, course_id: str, coursework_id: str) -> Dict[str, Any]:
-        """
-        Fetches the student's own submission state for a specific coursework item.
+        Fetches the authenticated user's email and stable Google 'sub' ID.
         """
         if not cls.is_real_oauth_token(api_key):
-            return {}
+            return {"email": None, "sub": None}
 
         headers = {"Authorization": f"Bearer {api_key}" if not api_key.startswith("Bearer ") else api_key}
-        url = f"{cls.BASE_URL}/courses/{course_id}/courseWork/{coursework_id}/studentSubmissions?states=STUDENT_UNSUBMITTED&states=TURNED_IN&states=RETURNED"
-
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.get(url, headers=headers)
+                resp = await client.get(cls.USERINFO_URL, headers=headers)
                 if resp.status_code == 200:
-                    submissions = resp.json().get("studentSubmissions", [])
-                    if submissions:
-                        return submissions[0]  # Return the user's own submission
+                    data = resp.json()
+                    return {
+                        "email": data.get("email"),
+                        "sub": data.get("sub")
+                    }
+                resp2 = await client.get(f"{cls.BASE_URL}/userProfiles/me", headers=headers)
+                if resp2.status_code == 200:
+                    data2 = resp2.json()
+                    return {
+                        "email": data2.get("emailAddress"),
+                        "sub": data2.get("id")
+                    }
         except Exception as e:
-            logger.warning(f"Could not fetch submissions for {coursework_id}: {e}")
-        return {}
+            logger.warning(f"Could not fetch Google user profile: {e}")
+        return {"email": None, "sub": None}
 
     @classmethod
     async def fetch_google_user_email(cls, api_key: str) -> Optional[str]:
-        """
-        Fetches the authenticated user's Gmail address from Google UserInfo API.
-        Handles gmail_login: prefix for direct Gmail+Password logins.
-        """
-        # Handle gmail_login:email:password format from direct Gmail login
-        if api_key.startswith("gmail_login:"):
-            parts = api_key.split(":", 2)
-            if len(parts) >= 2 and parts[1]:
-                return parts[1]  # The Gmail address entered by the user
-            return None
-
-        # Only real OAuth tokens can fetch user info from Google
-        if not cls.is_real_oauth_token(api_key):
-            return None
-
-        headers = {"Authorization": f"Bearer {api_key}" if not api_key.startswith("Bearer ") else api_key}
-        try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.get("https://www.googleapis.com/oauth2/v3/userinfo", headers=headers)
-                if resp.status_code == 200:
-                    email = resp.json().get("email")
-                    if email:
-                        return email
-                # Fallback: Try Google Classroom Profile
-                resp2 = await client.get(f"{cls.BASE_URL}/userProfiles/me", headers=headers)
-                if resp2.status_code == 200:
-                    email = resp2.json().get("emailAddress")
-                    if email:
-                        return email
-        except Exception as e:
-            logger.warning(f"Could not fetch Google user email: {e}")
-        return None
+        profile = await cls.fetch_google_user_profile(api_key)
+        return profile.get("email")
 
     @classmethod
     async def sync_user_gcr_data(
@@ -146,18 +124,34 @@ class GCRService:
         await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == user_id))
         await db.commit()
 
-        # Update user's GCR credentials and email first
+        # Fetch user details
         user_res = await db.execute(select(User).where(User.id == user_id))
         u = user_res.scalar_one_or_none()
+
+        active_key = api_key
+        if u and getattr(u, "gcr_refresh_token", None):
+            # Test key or attempt refresh if needed
+            test_courses = await cls.verify_and_fetch_courses(active_key)
+            if not test_courses:
+                new_access_token = await cls.refresh_access_token(u.gcr_refresh_token)
+                if new_access_token:
+                    logger.info(f"Refreshed expired Google access token for user {user_id}")
+                    active_key = new_access_token
+                    u.gcr_api_key = new_access_token
+                    await db.commit()
+
         if u:
-            u.gcr_api_key = api_key
+            u.gcr_api_key = active_key
             u.gcr_connected_at = datetime.now(timezone.utc)
-            user_email = await cls.fetch_google_user_email(api_key)
-            u.gcr_user_email = user_email
+            profile = await cls.fetch_google_user_profile(active_key)
+            if profile.get("email"):
+                u.gcr_user_email = profile.get("email")
+            if profile.get("sub"):
+                u.gcr_sub_id = profile.get("sub")
             await db.commit()
 
         # Fetch real courses from Google Classroom API
-        courses = await cls.verify_and_fetch_courses(api_key)
+        courses = await cls.verify_and_fetch_courses(active_key)
 
         if not courses:
             logger.info(f"No courses returned for user {user_id}. Nothing to sync.")
@@ -168,7 +162,7 @@ class GCRService:
         for course in courses[:10]:  # Process up to 10 courses
             c_id = str(course.get("id"))
             c_name = course.get("name", "Google Classroom")
-            works = await cls.fetch_coursework(api_key, c_id)
+            works = await cls.fetch_coursework(active_key, c_id)
 
             for w in works:
                 w_id = str(w.get("id"))
@@ -178,7 +172,7 @@ class GCRService:
                 link = w.get("alternateLink", "https://classroom.google.com")
 
                 # Fetch real submission state for this coursework
-                submission = await cls.fetch_student_submissions(api_key, c_id, w_id)
+                submission = await cls.fetch_student_submissions(active_key, c_id, w_id)
                 sub_state = submission.get("state", w.get("submissionState", "ASSIGNED"))
 
                 # Parse Due Date

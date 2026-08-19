@@ -26,6 +26,8 @@ class User(Base):
     gcr_api_key: Any = Column(String(500), nullable=True)
     gcr_user_email: Any = Column(String(200), nullable=True)
     gcr_connected_at: Any = Column(DateTime, nullable=True)
+    gcr_sub_id: Any = Column(String(200), nullable=True)
+    gcr_refresh_token: Any = Column(String(500), nullable=True)
 
     # Relationships
     uploaded_files = relationship("UploadedFile", back_populates="user", cascade="all, delete-orphan")

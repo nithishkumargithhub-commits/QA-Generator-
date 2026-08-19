@@ -54,7 +54,13 @@ async def init_db():
         if "sqlite" in db_url:
             # Auto-migrate SQLite schema for missing columns in existing user table
             from sqlalchemy import text
-            for col_name, col_type in [("gcr_api_key", "VARCHAR(500)"), ("gcr_user_email", "VARCHAR(200)"), ("gcr_connected_at", "DATETIME")]:
+            for col_name, col_type in [
+                ("gcr_api_key", "VARCHAR(500)"),
+                ("gcr_user_email", "VARCHAR(200)"),
+                ("gcr_connected_at", "DATETIME"),
+                ("gcr_sub_id", "VARCHAR(200)"),
+                ("gcr_refresh_token", "VARCHAR(500)")
+            ]:
                 try:
                     await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};"))
                 except Exception:

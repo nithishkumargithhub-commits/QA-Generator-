@@ -9,6 +9,12 @@ from app.api.deps import get_current_user
 from app.models.models import User, GoogleClassroomAssignment
 from app.services.gcr_service import gcr_service
 
+from urllib.parse import quote, urlencode
+from datetime import datetime, timezone, timedelta
+from fastapi.responses import RedirectResponse
+from app.core.config import settings
+from app.core.security import create_access_token, decode_token
+
 router = APIRouter(prefix="/gcr", tags=["Google Classroom Integration"])
 
 class GCRCredentialsRequest(BaseModel):
@@ -30,6 +36,125 @@ class GCRAssignmentOut(BaseModel):
     class Config:
         from_attributes = True
 
+@router.get("/oauth/url")
+async def get_gcr_oauth_url(
+    frontend_origin: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generates the official Google OAuth 2.0 Authorization URL bound to the current logged-in user.
+    """
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=400,
+            detail="GOOGLE_CLIENT_ID is not configured in backend environment (.env). Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."
+        )
+
+    redirect_uri = settings.GOOGLE_REDIRECT_URI
+    
+    # State token contains current user's ID and timestamp signed securely
+    state_payload = {
+        "sub": str(current_user.id),
+        "type": "gcr_oauth_state",
+        "redirect_uri": redirect_uri,
+        "frontend_origin": frontend_origin or "http://localhost:5173"
+    }
+    state_token = create_access_token(state_payload, expires_delta=timedelta(minutes=15))
+
+    scopes = [
+        "https://www.googleapis.com/auth/classroom.courses.readonly",
+        "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
+        "https://www.googleapis.com/auth/classroom.coursework.students.readonly",
+        "email",
+        "profile",
+        "openid"
+    ]
+
+    params = {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": " ".join(scopes),
+        "access_type": "offline",
+        "prompt": "consent select_account",
+        "state": state_token
+    }
+
+    url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+    return {
+        "status": "success",
+        "url": url,
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": redirect_uri
+    }
+
+@router.get("/oauth/callback")
+async def gcr_oauth_callback(
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handles Google OAuth redirect callback, exchanges authorization code for tokens,
+    associates Google account with the logged-in application user, syncs courses,
+    and redirects user back to frontend /gcr.
+    """
+    frontend_base = "http://localhost:5173"
+
+    if error:
+        return RedirectResponse(url=f"{frontend_base}/gcr?error={quote(error)}")
+
+    if not code or not state:
+        return RedirectResponse(url=f"{frontend_base}/gcr?error=missing_code_or_state")
+
+    try:
+        # Validate signed state token
+        payload = decode_token(state)
+        if not payload or payload.get("type") != "gcr_oauth_state" or not payload.get("sub"):
+            return RedirectResponse(url=f"{frontend_base}/gcr?error=invalid_or_expired_oauth_state")
+
+        user_id = payload.get("sub")
+        redirect_uri = payload.get("redirect_uri") or settings.GOOGLE_REDIRECT_URI
+        frontend_base = payload.get("frontend_origin") or "http://localhost:5173"
+
+        # Exchange authorization code for Google tokens
+        tokens = await gcr_service.exchange_code_for_tokens(code, redirect_uri)
+        access_token = tokens.get("access_token")
+        refresh_token = tokens.get("refresh_token")
+
+        if not access_token:
+            return RedirectResponse(url=f"{frontend_base}/gcr?error=failed_to_obtain_access_token")
+
+        # Fetch Google user profile (email and stable sub ID)
+        profile = await gcr_service.fetch_google_user_profile(access_token)
+        google_email = profile.get("email")
+        google_sub = profile.get("sub")
+
+        # Associate credentials with current application user in DB
+        res = await db.execute(select(User).where(User.id == user_id))
+        user = res.scalar_one_or_none()
+        if not user:
+            return RedirectResponse(url=f"{frontend_base}/gcr?error=user_not_found")
+
+        # Update User record
+        user.gcr_api_key = access_token
+        if refresh_token:
+            user.gcr_refresh_token = refresh_token
+        user.gcr_user_email = google_email
+        user.gcr_sub_id = google_sub
+        user.gcr_connected_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        # Synchronize courses and assignments
+        synced = await gcr_service.sync_user_gcr_data(db, user_id=user_id, api_key=access_token)
+
+        success_msg = f"Successfully authenticated as {google_email or 'Google user'}! Synced {len(synced)} assignments."
+        return RedirectResponse(url=f"{frontend_base}/gcr?status=success&message={quote(success_msg)}&email={quote(google_email or '')}")
+
+    except Exception as e:
+        return RedirectResponse(url=f"{frontend_base}/gcr?error={quote(str(e))}")
+
 @router.post("/credentials")
 async def save_gcr_credentials(
     payload: GCRCredentialsRequest,
@@ -38,39 +163,27 @@ async def save_gcr_credentials(
 ):
     key = payload.api_key.strip()
     if not key:
-        raise HTTPException(status_code=400, detail="Google Classroom API Key or OAuth token cannot be empty.")
+        raise HTTPException(status_code=400, detail="Google Classroom OAuth token cannot be empty.")
 
     try:
-        # Always fully wipe old GCR data first (assignments + user fields)
-        # This prevents stale data from a previous account showing up
         await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == str(current_user.id)))
         await db.commit()
 
-        # Reset user GCR fields before re-syncing
         current_user.gcr_api_key = None
         current_user.gcr_user_email = None
         current_user.gcr_connected_at = None
         await db.commit()
 
-        # Sync real data from Google Classroom API
         assignments = await gcr_service.sync_user_gcr_data(
-            db, user_id=str(current_user.id), api_key=key, clear_existing=False  # already cleared above
+            db, user_id=str(current_user.id), api_key=key, clear_existing=False
         )
 
-        # Re-fetch the updated user to get the saved email
         await db.refresh(current_user)
         connected_email = getattr(current_user, "gcr_user_email", None)
 
-        if assignments:
-            msg = f"Successfully connected! Synced {len(assignments)} assignments from Google Classroom."
-        elif connected_email:
-            msg = f"Connected as {connected_email}. Use 'Sign In with Google' (OAuth) to load your real courses and assignments."
-        else:
-            msg = "Connected. Use the 'Sign In with Google' button to authorize and load your real Google Classroom data."
-
         return {
             "status": "connected",
-            "message": msg,
+            "message": f"Successfully synced {len(assignments)} assignments from Google Classroom.",
             "synced_count": len(assignments),
             "connected_email": connected_email
         }
@@ -82,9 +195,11 @@ async def disconnect_gcr(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Clear all GCR data for this user
+    # Clear all GCR credentials & data for this user
     current_user.gcr_api_key = None
+    current_user.gcr_refresh_token = None
     current_user.gcr_user_email = None
+    current_user.gcr_sub_id = None
     current_user.gcr_connected_at = None
     await db.execute(delete(GoogleClassroomAssignment).where(GoogleClassroomAssignment.user_id == str(current_user.id)))
     await db.commit()

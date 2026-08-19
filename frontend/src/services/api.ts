@@ -281,6 +281,11 @@ class ApiClient {
   }
 
   // Google Classroom Integration Methods
+  async getGCROAuthUrl(): Promise<{ status: string; url: string; client_id: string; redirect_uri: string }> {
+    const origin = window.location.origin;
+    return this.request(`/gcr/oauth/url?frontend_origin=${encodeURIComponent(origin)}`);
+  }
+
   async saveGCRCredentials(apiKey: string): Promise<any> {
     return this.request('/gcr/credentials', {
       method: 'POST',
