@@ -36,6 +36,8 @@ class GCRAssignmentOut(BaseModel):
     class Config:
         from_attributes = True
 
+import json
+
 @router.get("/oauth/url")
 async def get_gcr_oauth_url(
     frontend_origin: Optional[str] = None,
@@ -52,19 +54,19 @@ async def get_gcr_oauth_url(
 
     redirect_uri = settings.GOOGLE_REDIRECT_URI
     
-    # State token contains current user's ID and timestamp signed securely
-    state_payload = {
-        "sub": str(current_user.id),
-        "type": "gcr_oauth_state",
+    # State payload serialized safely to JSON before token creation
+    raw_state = json.dumps({
+        "user_id": str(current_user.id),
         "redirect_uri": redirect_uri,
         "frontend_origin": frontend_origin or "http://localhost:5173"
-    }
-    state_token = create_access_token(state_payload, expires_delta=timedelta(minutes=15))
+    })
+    state_token = create_access_token(subject=raw_state, expires_delta=timedelta(minutes=15))
 
     scopes = [
         "https://www.googleapis.com/auth/classroom.courses.readonly",
         "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
         "https://www.googleapis.com/auth/classroom.coursework.students.readonly",
+        "https://www.googleapis.com/auth/classroom.rosters.readonly",
         "email",
         "profile",
         "openid"
@@ -111,12 +113,19 @@ async def gcr_oauth_callback(
     try:
         # Validate signed state token
         payload = decode_token(state)
-        if not payload or payload.get("type") != "gcr_oauth_state" or not payload.get("sub"):
+        if not payload or not payload.get("sub"):
             return RedirectResponse(url=f"{frontend_base}/gcr?error=invalid_or_expired_oauth_state")
 
-        user_id = payload.get("sub")
-        redirect_uri = payload.get("redirect_uri") or settings.GOOGLE_REDIRECT_URI
-        frontend_base = payload.get("frontend_origin") or "http://localhost:5173"
+        try:
+            state_data = json.loads(payload["sub"])
+            user_id = state_data.get("user_id")
+            redirect_uri = state_data.get("redirect_uri") or settings.GOOGLE_REDIRECT_URI
+            frontend_base = state_data.get("frontend_origin") or "http://localhost:5173"
+        except Exception:
+            return RedirectResponse(url=f"{frontend_base}/gcr?error=corrupted_oauth_state")
+
+        if not user_id:
+            return RedirectResponse(url=f"{frontend_base}/gcr?error=missing_user_in_state")
 
         # Exchange authorization code for Google tokens
         tokens = await gcr_service.exchange_code_for_tokens(code, redirect_uri)
