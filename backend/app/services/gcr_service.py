@@ -27,14 +27,18 @@ class GCRService:
         """
         Exchanges Google OAuth authorization code for access_token and refresh_token.
         """
-        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        client_id = (settings.GOOGLE_CLIENT_ID or "").strip()
+        client_secret = (settings.GOOGLE_CLIENT_SECRET or "").strip()
+        clean_redirect = (redirect_uri or "").strip()
+
+        if not client_id or not client_secret:
             raise ValueError("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not configured in backend environment.")
 
         payload = {
-            "code": code,
-            "client_id": settings.GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "redirect_uri": redirect_uri,
+            "code": code.strip(),
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": clean_redirect,
             "grant_type": "authorization_code"
         }
 
@@ -51,13 +55,16 @@ class GCRService:
         """
         Refreshes access token using Google refresh_token.
         """
-        if not refresh_token or not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        client_id = (settings.GOOGLE_CLIENT_ID or "").strip()
+        client_secret = (settings.GOOGLE_CLIENT_SECRET or "").strip()
+
+        if not refresh_token or not client_id or not client_secret:
             return None
 
         payload = {
-            "client_id": settings.GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token.strip(),
             "grant_type": "refresh_token"
         }
 

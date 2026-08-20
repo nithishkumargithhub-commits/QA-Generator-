@@ -46,19 +46,21 @@ async def get_gcr_oauth_url(
     """
     Generates the official Google OAuth 2.0 Authorization URL bound to the current logged-in user.
     """
-    if not settings.GOOGLE_CLIENT_ID:
+    client_id = (settings.GOOGLE_CLIENT_ID or "").strip()
+    if not client_id:
         raise HTTPException(
             status_code=400,
             detail="GOOGLE_CLIENT_ID is not configured in backend environment (.env). Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."
         )
 
-    redirect_uri = settings.GOOGLE_REDIRECT_URI
+    redirect_uri = (settings.GOOGLE_REDIRECT_URI or "http://localhost:8000/api/v1/gcr/oauth/callback").strip()
+    clean_frontend_origin = (frontend_origin or "http://localhost:5173").strip()
     
     # State payload serialized safely to JSON before token creation
     raw_state = json.dumps({
         "user_id": str(current_user.id),
         "redirect_uri": redirect_uri,
-        "frontend_origin": frontend_origin or "http://localhost:5173"
+        "frontend_origin": clean_frontend_origin
     })
     state_token = create_access_token(subject=raw_state, expires_delta=timedelta(minutes=15))
 
@@ -67,13 +69,13 @@ async def get_gcr_oauth_url(
         "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
         "https://www.googleapis.com/auth/classroom.coursework.students.readonly",
         "https://www.googleapis.com/auth/classroom.rosters.readonly",
-        "email",
-        "profile",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
         "openid"
     ]
 
     params = {
-        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": " ".join(scopes),
@@ -86,7 +88,7 @@ async def get_gcr_oauth_url(
     return {
         "status": "success",
         "url": url,
-        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_id": client_id,
         "redirect_uri": redirect_uri
     }
 
