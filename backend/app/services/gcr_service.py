@@ -82,6 +82,76 @@ class GCRService:
             return None
 
     @classmethod
+    async def verify_and_fetch_courses(cls, api_key: str) -> List[Dict[str, Any]]:
+        """
+        Fetches all courses (ACTIVE or enrolled) from Google Classroom API.
+        """
+        if not api_key:
+            return []
+        headers = {"Authorization": f"Bearer {api_key}" if not api_key.startswith("Bearer ") else api_key}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # Query active courses
+                resp = await client.get(f"{cls.BASE_URL}/courses?courseStates=ACTIVE", headers=headers)
+                if resp.status_code == 200:
+                    courses = resp.json().get("courses", [])
+                    if courses:
+                        return courses
+                
+                # Fallback: query without courseStates filter
+                resp_all = await client.get(f"{cls.BASE_URL}/courses", headers=headers)
+                if resp_all.status_code == 200:
+                    return resp_all.json().get("courses", [])
+                else:
+                    logger.warning(f"Failed to fetch courses: {resp_all.status_code} - {resp_all.text}")
+                    return []
+        except Exception as e:
+            logger.error(f"Error fetching Google Classroom courses: {e}")
+            return []
+
+    @classmethod
+    async def fetch_coursework(cls, api_key: str, course_id: str) -> List[Dict[str, Any]]:
+        """
+        Fetches coursework items for a given course ID from Google Classroom API.
+        """
+        if not api_key or not course_id:
+            return []
+        headers = {"Authorization": f"Bearer {api_key}" if not api_key.startswith("Bearer ") else api_key}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{cls.BASE_URL}/courses/{course_id}/courseWork", headers=headers)
+                if resp.status_code == 200:
+                    return resp.json().get("courseWork", [])
+                else:
+                    logger.warning(f"Failed to fetch coursework for course {course_id}: {resp.status_code}")
+                    return []
+        except Exception as e:
+            logger.error(f"Error fetching coursework for course {course_id}: {e}")
+            return []
+
+    @classmethod
+    async def fetch_student_submissions(cls, api_key: str, course_id: str, coursework_id: str) -> Dict[str, Any]:
+        """
+        Fetches student submission state for a given coursework from Google Classroom API.
+        """
+        if not api_key or not course_id or not coursework_id:
+            return {}
+        headers = {"Authorization": f"Bearer {api_key}" if not api_key.startswith("Bearer ") else api_key}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"{cls.BASE_URL}/courses/{course_id}/courseWork/{coursework_id}/studentSubmissions",
+                    headers=headers
+                )
+                if resp.status_code == 200:
+                    subs = resp.json().get("studentSubmissions", [])
+                    return subs[0] if subs else {}
+                return {}
+        except Exception as e:
+            logger.error(f"Error fetching student submission: {e}")
+            return {}
+
+    @classmethod
     async def fetch_google_user_profile(cls, api_key: str) -> Dict[str, Optional[str]]:
         """
         Fetches the authenticated user's email and stable Google 'sub' ID.
@@ -166,51 +236,69 @@ class GCRService:
 
         synced_assignments = []
 
-        for course in courses[:10]:  # Process up to 10 courses
+        for course in courses[:15]:  # Process up to 15 courses
             c_id = str(course.get("id"))
             c_name = course.get("name", "Google Classroom")
+            c_link = course.get("alternateLink", f"https://classroom.google.com/c/{c_id}")
             works = await cls.fetch_coursework(active_key, c_id)
 
-            for w in works:
-                w_id = str(w.get("id"))
-                title = w.get("title", "Homework Assignment")
-                desc = w.get("description", "")
-                max_pts = float(w.get("maxPoints", 0.0))
-                link = w.get("alternateLink", "https://classroom.google.com")
-
-                # Fetch real submission state for this coursework
-                submission = await cls.fetch_student_submissions(active_key, c_id, w_id)
-                sub_state = submission.get("state", w.get("submissionState", "ASSIGNED"))
-
-                # Parse Due Date
-                due_dt = None
-                due_info = w.get("dueDate")
-                if due_info and isinstance(due_info, dict):
-                    y = due_info.get("year", datetime.now().year)
-                    m = due_info.get("month", 1)
-                    d = due_info.get("day", 1)
-                    t_info = w.get("dueTime", {})
-                    h = t_info.get("hours", 23)
-                    mi = t_info.get("minutes", 59)
-                    try:
-                        due_dt = datetime(y, m, d, h, mi, tzinfo=timezone.utc)
-                    except ValueError:
-                        due_dt = None
-
-                new_item = GoogleClassroomAssignment(
+            if not works:
+                # Add course entry so the course itself is listed and practice quizzes can be generated
+                new_course_item = GoogleClassroomAssignment(
                     user_id=user_id,
                     gcr_course_id=c_id,
-                    gcr_coursework_id=w_id,
+                    gcr_coursework_id=f"course-{c_id}",
                     course_name=c_name,
-                    title=title,
-                    description=desc,
-                    due_date=due_dt,
-                    max_points=max_pts,
-                    submission_state=sub_state,
-                    alternate_link=link
+                    title=f"Course: {c_name}",
+                    description=course.get("description", course.get("section", "Active Google Classroom course")),
+                    due_date=None,
+                    max_points=100.0,
+                    submission_state="ACTIVE",
+                    alternate_link=c_link
                 )
-                db.add(new_item)
-                synced_assignments.append(new_item)
+                db.add(new_course_item)
+                synced_assignments.append(new_course_item)
+            else:
+                for w in works:
+                    w_id = str(w.get("id"))
+                    title = w.get("title", "Homework Assignment")
+                    desc = w.get("description", "")
+                    max_pts = float(w.get("maxPoints", 100.0))
+                    link = w.get("alternateLink", c_link)
+
+                    # Fetch real submission state for this coursework
+                    submission = await cls.fetch_student_submissions(active_key, c_id, w_id)
+                    sub_state = submission.get("state", w.get("submissionState", "ASSIGNED"))
+
+                    # Parse Due Date
+                    due_dt = None
+                    due_info = w.get("dueDate")
+                    if due_info and isinstance(due_info, dict):
+                        y = due_info.get("year", datetime.now().year)
+                        m = due_info.get("month", 1)
+                        d = due_info.get("day", 1)
+                        t_info = w.get("dueTime", {})
+                        h = t_info.get("hours", 23)
+                        mi = t_info.get("minutes", 59)
+                        try:
+                            due_dt = datetime(y, m, d, h, mi, tzinfo=timezone.utc)
+                        except ValueError:
+                            due_dt = None
+
+                    new_item = GoogleClassroomAssignment(
+                        user_id=user_id,
+                        gcr_course_id=c_id,
+                        gcr_coursework_id=w_id,
+                        course_name=c_name,
+                        title=title,
+                        description=desc,
+                        due_date=due_dt,
+                        max_points=max_pts,
+                        submission_state=sub_state,
+                        alternate_link=link
+                    )
+                    db.add(new_item)
+                    synced_assignments.append(new_item)
 
         await db.commit()
         logger.info(f"Synced {len(synced_assignments)} real assignments for user {user_id}")
