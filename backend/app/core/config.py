@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # Security & Tokens
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "super-secret-key-change-in-production-qa-gen-2026-secure-jwt")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
@@ -23,7 +23,6 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
-        "*"
     ]
     
     # Database (Supports PostgreSQL via env or absolute SQLite path for consistent local execution)
@@ -53,7 +52,7 @@ class Settings(BaseSettings):
     # Default Admin Seed
     DEFAULT_ADMIN_USERNAME: str = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
     DEFAULT_ADMIN_EMAIL: str = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@qagenerator.com")
-    DEFAULT_ADMIN_PASSWORD: str = os.getenv("DEFAULT_ADMIN_PASSWORD", "AdminSecret123!")
+    DEFAULT_ADMIN_PASSWORD: str = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
     
     # File Storage
     UPLOAD_DIR: str = os.path.join(os.getcwd(), "uploads")
@@ -65,4 +64,8 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 settings = Settings()
+if not settings.SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable must be configured before starting QA Generator.")
+if not settings.DEFAULT_ADMIN_PASSWORD:
+    raise RuntimeError("DEFAULT_ADMIN_PASSWORD environment variable must be configured before starting QA Generator.")
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
